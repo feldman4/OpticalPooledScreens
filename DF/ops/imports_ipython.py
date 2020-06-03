@@ -1,8 +1,8 @@
 # plotting for notebook and code reloading 
 
-from ops.imports import *
-from ops.firesnake import Snake
-from ops.process import Align
+from .imports import *
+from .firesnake import Snake
+from .process import Align
 
 import IPython
 IPython.get_ipython().run_line_magic('load_ext', 'autoreload')
@@ -14,3 +14,8 @@ import seaborn as sns
 
 import tqdm.notebook
 tqdn = tqdm.notebook.tqdm
+
+# temporary: imports using "ops" name
+# import ops.io
+# import ops.process
+# import ops.utils

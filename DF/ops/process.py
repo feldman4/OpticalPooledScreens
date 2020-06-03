@@ -7,7 +7,6 @@ import skimage.feature
 import skimage.filters
 import numpy as np
 import pandas as pd
-import scipy.stats
 
 from scipy import ndimage
 
