@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from ops.constants import *
-from ops.utils import groupby_histogram, groupby_reduce_concat
+from .constants import *
+from .utils import groupby_histogram, groupby_reduce_concat
 from scipy.stats import wasserstein_distance, ks_2samp, ttest_ind
 
 import seaborn as sns

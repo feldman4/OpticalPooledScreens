@@ -1,5 +1,5 @@
 import numpy as np
-import ops.utils
+from . import utils
 
 # FUNCTIONS
 
@@ -40,9 +40,9 @@ geometry = {
     'i'       : lambda r: r.centroid[0],
     'j'       : lambda r: r.centroid[1],
     'bounds'  : lambda r: r.bbox,
-    # 'contour' : lambda r: ops.utils.binary_contours(r.image, fix=True, labeled=False)[0],
+    # 'contour' : lambda r: utils.binary_contours(r.image, fix=True, labeled=False)[0],
     'label'   : lambda r: r.label,
-    # 'mask':     lambda r: ops.utils.Mask(r.image),
+    # 'mask':     lambda r: utils.Mask(r.image),
     'eccentricity': lambda r: r.eccentricity,
     'solidity': lambda r: r.solidity,
     'convex_area': lambda r: r.convex_area,

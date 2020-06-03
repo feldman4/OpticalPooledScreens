@@ -6,7 +6,7 @@ import os
 import PIL.Image
 import PIL.ImageFont
 
-from ops.constants import *
+from .constants import *
 import ops.filenames
 import ops
 import ops.io

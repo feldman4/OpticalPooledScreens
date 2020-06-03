@@ -4,7 +4,7 @@ from glob import glob
 from natsort import natsorted
 
 # TODO: from ops.constants import *
-import ops.utils
+from . import utils
 
 def load_hist(filename, threshold):
     try:
@@ -30,7 +30,7 @@ def load_sgRNA_hists(histogram_files, threshold=3):
          .rename(columns={'seq': 'sgRNA'})
          .pipe(lambda x: pd.concat([x['file'].str.extract(pat), x], 
                                    axis=1))
-         .pipe(ops.utils.cast_cols, int_cols=['col'])
+         .pipe(utils.cast_cols, int_cols=['col'])
          .drop(['file'], axis=1)
          .assign(dataset=dataset)
          [cols]
@@ -65,7 +65,7 @@ def calc_stats(df_hist, df_design, extra_cols=[]):
      .join(sizes.rename('designed'), on='subpool')
      .assign(Q90_10=lambda x: x.eval('Q90 / Q10'))
      .assign(missing=lambda x: x.eval('designed - count').astype(int))
-     .pipe(ops.utils.cast_cols, int_cols=['count', 'max', 'min'])
+     .pipe(utils.cast_cols, int_cols=['count', 'max', 'min'])
      .join(fractions)
      .rename(columns=lambda x: 'NGS_' + x)
      .rename(columns=cols)

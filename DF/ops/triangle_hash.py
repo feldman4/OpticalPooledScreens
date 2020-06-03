@@ -4,7 +4,8 @@ from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor, LinearRegression
 
-import ops.utils
+from . import utils
+
 
 def find_triangles(df):
     v, c = get_vectors(df[['i', 'j']].values)
@@ -16,6 +17,7 @@ def find_triangles(df):
     )
 
     return df_
+
 
 def nine_edge_hash(dt, i):
     """For triangle `i` in Delaunay triangulation `dt`, extract the vector 
@@ -228,7 +230,7 @@ def brute_force_pairs(df_0, df_1):
             return result
 
         (df_0
-         .pipe(ops.utils.gb_apply_parallel, 'tile', work_on)
+         .pipe(utils.gb_apply_parallel, 'tile', work_on)
          .assign(site=site)
          .pipe(arr.append)
         )

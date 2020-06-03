@@ -4,7 +4,7 @@ import time
 from urllib.parse import urlparse
 from glob import glob
 
-from ops.constants import FILE
+from .constants import FILE
 
 
 FILE_PATTERN = [

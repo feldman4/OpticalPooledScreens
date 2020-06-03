@@ -15,7 +15,7 @@ import ops.features
 import ops.process
 import ops.io
 import ops.in_situ
-from ops.process import Align
+from .process import Align
 
 
 class Snake():

@@ -1,4 +1,4 @@
-import ops.utils
+from . import utils
 
 import networkx as nx
 import pandas as pd
@@ -17,7 +17,7 @@ def format_stats_wide(df_stats):
 
     stats = (df_stats
      .pivot_table(index=index, columns=columns, values=values)
-     .pipe(ops.utils.flatten_cols))
+     .pipe(utils.flatten_cols))
 
     counts = (df_stats
      .pivot_table(index=index, columns='stimulant', values='count')
@@ -100,7 +100,7 @@ def get_stats(df, col='spline_diff'):
 
     stats = (df_diff.groupby('gene_symbol')
      [col]
-     .pipe(ops.utils.groupby_reduce_concat, 'mean', 'count', 
+     .pipe(utils.groupby_reduce_concat, 'mean', 'count', 
            pval=lambda x: x.apply(test))
      .assign(pval_FDR_10=lambda x: 
             multipletests(x['pval'], 0.1)[1]))

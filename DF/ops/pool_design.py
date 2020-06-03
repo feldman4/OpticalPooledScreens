@@ -6,8 +6,8 @@ import os
 import Levenshtein
 import itertools
 
-import ops.utils
-from ops.constants import *
+from . import utils
+from .constants import *
 
 num_cores = 4
 
@@ -82,7 +82,7 @@ def select_prefix_group(df_genes, df_sgRNAs, extra_cols=None):
         .pipe(select_guides, prefix_length, edit_distance)
         .sort_values([SUBPOOL, GENE_ID, RANK])
         .assign(selected_rank=lambda x: 
-            ops.utils.rank_by_order(x, [SUBPOOL, GENE_ID]))
+            utils.rank_by_order(x, [SUBPOOL, GENE_ID]))
         .query('selected_rank <= sgRNAs_per_gene')
         .sort_values([SUBPOOL, GENE_ID, 'selected_rank'])
         .drop(['selected_rank'], axis=1)
@@ -556,7 +556,7 @@ def import_brunello(filename):
     return (pd.read_csv(filename, sep='\t')
         .rename(columns=columns)
         .pipe(reassign_nontargeting)
-        .pipe(ops.utils.cast_cols, int_cols=[GENE_ID])
+        .pipe(utils.cast_cols, int_cols=[GENE_ID])
         .assign(**{SGRNA_SCORE: lambda x: x[SGRNA_SCORE].fillna(0)})
         .assign(**{RANK: lambda x: 
             x.groupby(GENE_ID)[SGRNA_SCORE]
@@ -573,7 +573,7 @@ def import_tkov3(filename, df_ncbi):
      .rename(columns=columns)
      [[GENE_SYMBOL, SGRNA]]
      .join(symbols_to_ids, on=GENE_SYMBOL, how='inner')
-     .assign(**{RANK: lambda x: ops.utils.rank_by_order(x, GENE_ID)})
+     .assign(**{RANK: lambda x: utils.rank_by_order(x, GENE_ID)})
     )
 
 
@@ -583,7 +583,7 @@ def import_hugo_ncbi(filename):
     return (pd.read_csv(filename, comment='#', sep='\t')
          .rename(columns=columns)
          .dropna()
-         .pipe(ops.utils.cast_cols, int_cols=[GENE_ID]))
+         .pipe(utils.cast_cols, int_cols=[GENE_ID]))
 
 
 def import_dialout_primers(filename):

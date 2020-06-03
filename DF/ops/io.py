@@ -5,11 +5,11 @@ import six
 import struct
 import warnings
 
-import ops.utils
+from . import utils
 import ops.constants
-from ops.external.tifffile_new import imread
+from .external.tifffile_new import imread
 # currently needed to save ImageJ-compatible hyperstacks
-from ops.external.tifffile_old import imsave
+from .external.tifffile_old import imsave
 
 imagej_description = ''.join(['ImageJ=1.49v\nimages=%d\nchannels=%d\nslices=%d',
                               '\nframes=%d\nhyperstack=true\nmode=composite',
@@ -49,7 +49,7 @@ def grid_view(files, bounds, padding=40, with_mask=False):
         except KeyError:
             I = read_stack(filename, copy=False) 
             Is[filename] = I
-        I_cell = ops.utils.subimage(I, bounds_, pad=padding)
+        I_cell = utils.subimage(I, bounds_, pad=padding)
         arr.append(I_cell.copy())
 
     if with_mask:
@@ -58,12 +58,12 @@ def grid_view(files, bounds, padding=40, with_mask=False):
             shape = i1 - i0 + padding, j1 - j0 + padding
             img = np.zeros(shape, dtype=np.uint16) + i + 1
             arr_m += [img]
-        return ops.utils.pile(arr), ops.utils.pile(arr_m)
+        return utils.pile(arr), utils.pile(arr_m)
 
-    return ops.utils.pile(arr)
+    return utils.pile(arr)
 
 
-@ops.utils.memoize(active=False)
+@utils.memoize(active=False)
 def read_stack(filename, copy=True):
     """Read a .tif file into a numpy array, with optional memory mapping.
     """

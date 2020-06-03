@@ -10,8 +10,7 @@ import pandas as pd
 
 from scipy import ndimage
 
-import ops.io
-import ops.utils
+from . import utils
 
 
 # FEATURES
@@ -23,7 +22,7 @@ def feature_table(data, labels, features, global_features=None):
     Results are combined in a dataframe with one row per label and
     one column per feature.
     """
-    regions = ops.utils.regionprops(labels, intensity_image=data)
+    regions = utils.regionprops(labels, intensity_image=data)
     results = defaultdict(list)
     for region in regions:
         for feature, func in features.items():
@@ -95,7 +94,7 @@ def find_peaks(data, n=5):
     
     return peaks
 
-@ops.utils.applyIJ
+@utils.applyIJ
 def log_ndi(data, sigma=1, *args, **kwargs):
     """Apply laplacian of gaussian to each image in a stack of shape
     (..., I, J). 
@@ -123,7 +122,7 @@ class Align:
         return normed
 
     @staticmethod
-    @ops.utils.applyIJ
+    @utils.applyIJ
     def filter_percentiles(data, q1, q2):
         """Replaces data outside of percentile range [q1, q2]
         with uniform noise over the range [q1, q2]. Useful for 
@@ -135,7 +134,7 @@ class Align:
         return Align.fill_noise(data, mask, x1, x2)
 
     @staticmethod
-    @ops.utils.applyIJ
+    @utils.applyIJ
     def filter_values(data, x1, x2):
         """Replaces data outside of value range [x1, x2]
         with uniform noise over the range [x1, x2]. Useful for 
@@ -301,7 +300,7 @@ def alpha_blend(arr, positions, clip=True, edge=0.95, edge_width=0.02, subpixel=
     positions : N x 2 (n, i, j)
     """
     
-    # @ops.utils.memoize
+    # @utils.memoize
     def make_alpha(s, edge=0.95, edge_width=0.02):
         """Unity in center, drops off near edge
         :param s: shape

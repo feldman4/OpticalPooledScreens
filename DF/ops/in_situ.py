@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from ops.constants import *
-import ops.utils
+from .constants import *
+from . import utils
 
 
 def extract_base_intensity(maxed, peaks, cells, threshold_peaks):
@@ -18,7 +18,7 @@ def extract_base_intensity(maxed, peaks, cells, threshold_peaks):
 def format_bases(values, labels, positions, cycles, bases):    
     index = (CYCLE, cycles), (CHANNEL, bases)
     try:
-        df = ops.utils.ndarray_to_dataframe(values, index)
+        df = utils.ndarray_to_dataframe(values, index)
     except ValueError:
         print('failed to reshape extracted pixels to sequencing bases, writing empty table')
         return pd.DataFrame()
@@ -256,7 +256,7 @@ def index_singleton_clusters(clusters):
 
 def join_by_cell_location(df_cells, df_ph, max_distance=4):
     """Can speed up over independent fields of view with 
-    `ops.utils.groupby_apply2`.
+    `utils.groupby_apply2`.
     """
     from scipy.spatial.kdtree import KDTree
     # df_cells = df_cells.sort_values(['well', 'tile', 'cell'])
