@@ -78,13 +78,15 @@ def read_stack(filename, copy=True):
 
 
 def save_stack(name, data, luts=None, display_ranges=None, 
-               resolution=1., compress=0, dimensions=None):
+               resolution=1., compress=0, dimensions=None,
+               display_mode='composite'):
     """
     Saves `data`, an array with 5, 4, 3, or 2 dimensions [TxZxCxYxX]. `resolution` 
     can be specified in microns per pixel. Setting `compress` to 1 saves a lot of 
     space for integer masks. The ImageJ lookup table for each channel can be set
-    with `luts` (e.g, ops.io.GRAY, ops.io.GREEN, etc). The display range can be set
-    with a list of (min, max) pairs for each channel.
+    with `luts` (e.g, ops.io.GRAY, ops.io.GREEN, etc), and the default display 
+    mode set with `display_mode`. The display range can be set with a list of 
+    (min, max) pairs for each channel.
 
     >>> random_data = np.random.randint(0, 2**16, size=(3, 100, 100), dtype=np.uint16)
     >>> luts = ops.io.GREEN, ops.io.RED, ops.io.BLUE
@@ -163,7 +165,7 @@ def save_stack(name, data, luts=None, display_ranges=None,
                description=description, resolution=resolution, compress=compress)
         else:
             # the full monty
-            description = imagej_description(leading_shape, dimensions)
+            description = imagej_description(leading_shape, dimensions, display_mode=display_mode)
             # metadata encoding LUTs and display ranges
             # see http://rsb.info.nih.gov/ij/developer/source/ij/io/TiffEncoder.java.html
             tag_50838 = ij_tag_50838(nchannels)
@@ -212,13 +214,13 @@ def imagej_description_2D(min, max):
     return 'ImageJ=1.49v\nimages=1\nmin={min}\nmax={max}'.format(min=min, max=max)
 
 
-def imagej_description(leading_shape, leading_axes, contrast=None):
+def imagej_description(leading_shape, leading_axes, contrast=None, display_mode='composite'):
     if len(leading_shape) != len(leading_axes):
         error = 'mismatched axes, shape is {} but axis labels are {}'
         raise ValueError(error.format(leading_shape, leading_axes))
 
     prefix = 'ImageJ=1.49v\n'
-    suffix = 'hyperstack=true\nmode=composite\n'
+    suffix = 'hyperstack=true\nmode={mode}\n'.format(mode=display_mode)
     images = np.prod(leading_shape)
     sizes = {k: v for k,v in zip(leading_axes, leading_shape)}
     description = prefix + 'images={}\n'.format(images)
