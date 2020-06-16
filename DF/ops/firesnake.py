@@ -263,15 +263,22 @@ class Snake():
         return df_reads
 
     @staticmethod
-    def _call_cells(df_reads, q_min=0):
+    def _call_cells(df_reads, df_pool=None, q_min=0):
         """Median correction performed independently for each tile.
         """
         if df_reads is None:
             return
         
-        return (df_reads
-            .query('Q_min >= @q_min')
-            .pipe(ops.in_situ.call_cells))
+        if df_pool is None:
+            return (df_reads
+                .query('Q_min >= @q_min')
+                .pipe(ops.in_situ.call_cells))
+        else:
+            prefix_length = len(df_reads.iloc[0].barcode) # get the number of completed SBS cycles
+            df_pool[PREFIX] = df_pool.apply(lambda x: x.sgRNA[:prefix_length],axis=1)
+            return (df_reads
+                .query('Q_min >= @q_min')
+                .pipe(ops.in_situ.call_cells_mapping,df_pool))
 
     @staticmethod
     def _extract_features(data, labels, wildcards, features=None):
