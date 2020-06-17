@@ -162,7 +162,8 @@ def groupby_apply2(df_1, df_2, cols, f, tqdn=True):
     d_2 = {k: v for k,v in df_2.groupby(cols)}
 
     if tqdn:
-        from tqdm import tqdm_notebook
+        import tqdm.notebook
+        tqdm_notebook = tqdm.notebook.tqdm
         progress = tqdm_notebook
     else:
         progress = lambda x: x
@@ -290,8 +291,9 @@ def csv_frame(files_or_search, tqdn=False, **kwargs):
         files = files_or_search
 
     if tqdn:
-        from tqdm import tqdm_notebook as tqdn
-        return pd.concat([read_csv(f) for f in tqdn(files)], sort=True)
+        import tqdm.notebook
+        tqdm_notebook = tqdm.notebook.tqdm
+        return pd.concat([read_csv(f) for f in tqdm_notebook(files)], sort=True)
     else:
         return pd.concat([read_csv(f) for f in files], sort=True)
 
@@ -308,7 +310,8 @@ def gb_apply_parallel(df, cols, func, n_jobs=None, tqdn=True):
     grouped = df.groupby(cols)
     names, work = zip(*grouped)
     if tqdn:
-        from tqdm import tqdm_notebook 
+        import tqdm.notebook
+        tqdm_notebook = tqdm.notebook.tqdm
         work = tqdm_notebook(work, str(cols))
     results = Parallel(n_jobs=n_jobs)(delayed(func)(w) for w in work)
 
