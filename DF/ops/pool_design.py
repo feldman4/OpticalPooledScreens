@@ -237,7 +237,7 @@ def build_test(df_oligos, dialout_primers):
     pat = pat.format(fwd=sites[0], rev=sites[1])
 
     kosuri = {}
-    for i, (fwd, rev) in enumerate(dialout_primers):
+    for i, (fwd, rev) in enumerate(dialout_primers,start=1):
         kosuri[fwd] = 'fwd_{0}'.format(i)
         kosuri[rev] = 'rev_{0}'.format(i)
 
