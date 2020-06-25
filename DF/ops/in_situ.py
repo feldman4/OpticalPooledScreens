@@ -258,7 +258,7 @@ def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
         verbose=True, ij=(POSITION_I, POSITION_J)):
     """Assigns -1 to clusters with only one cell.
     """
-    from scipy.spatial.kdtree import KDTree
+    from scipy.spatial import cKDTree
     import networkx as nx
 
     I, J = ij
@@ -267,7 +267,7 @@ def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
     barcodes = df_cells[barcode_col]
     barcodes = np.array(barcodes)
 
-    kdt = KDTree(np.array([x, y]).T)
+    kdt = cKDTree(np.array([x, y]).T)
     num_cells = len(df_cells)
 
     if verbose:
@@ -308,7 +308,7 @@ def join_by_cell_location(df_cells, df_ph, max_distance=4):
     """Can speed up over independent fields of view with 
     `utils.groupby_apply2`.
     """
-    from scipy.spatial.kdtree import KDTree
+    from scipy.spatial import cKDTree
     # df_cells = df_cells.sort_values(['well', 'tile', 'cell'])
     # df_ph = df_ph.sort_values(['well', 'tile', 'cell'])
     i_tree = df_ph['global_y']
@@ -316,7 +316,7 @@ def join_by_cell_location(df_cells, df_ph, max_distance=4):
     i_query = df_cells['global_y']
     j_query = df_cells['global_x']
     
-    kdt = KDTree(list(zip(i_tree, j_tree)))
+    kdt = cKDTree(list(zip(i_tree, j_tree)))
     distance, index = kdt.query(list(zip(i_query, j_query)))
     cell_ph = df_ph.iloc[index]['cell'].pipe(list)
     cols_left = ['well', 'tile', 'cell_ph']
