@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.spatial.kdtree import KDTree
+from scipy.spatial import cKDTree
 from scipy.stats import mode
 from pims import ND2_Reader
 from itertools import product
@@ -29,7 +29,7 @@ def add_neighbors(df_info, num_neighbors=9, radius_leniency=10):
     site = SITE
     
     df = df_info.drop_duplicates(xy)
-    kdt = KDTree(df[xy].values)
+    kdt = cKDTree(df[xy].values)
 
     distance, index = kdt.query(df[xy].values, k=num_neighbors)
 
