@@ -1,4 +1,3 @@
-name: NatureProtocols
 channels:
   - bioconda
   - conda-forge
