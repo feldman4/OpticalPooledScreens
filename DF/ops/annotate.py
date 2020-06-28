@@ -61,16 +61,19 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
     return phenotype
 
 
-def annotate_points(df, value, ij=('i', 'j'), width=3, shape=(1024, 1024)):
+def annotate_points(df, value, ij=('i', 'j'), width=3, shape=(1024, 1024), selem=None):
     """Create a mask with pixels at coordinates `ij` set to `value` from 
-    dataframe `df`. 
+    dataframe `df`. Dilation is performed with `selem` if provided, or else a square of
+    `width`.
     """
     ij = df[list(ij)].values.astype(int)
     n = ij.shape[0]
     mask = np.zeros(shape, dtype=df[value].dtype)
     mask[ij[:, 0], ij[:, 1]] = df[value]
 
-    selem = np.ones((width, width))
+    if selem is None:
+        selem = np.ones((width, width))
+        
     mask = skimage.morphology.dilation(mask, selem)
 
     return mask
