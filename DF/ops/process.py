@@ -3,12 +3,13 @@ from collections import defaultdict
 from itertools import product
 
 import skimage
-import skimage.feature
-import skimage.filters
+import skimage.segmentation
+import skimage.morphology
+import skimage.registration
 import numpy as np
 import pandas as pd
 
-from scipy import ndimage
+from scipy import ndimage as ndi
 
 from . import utils
 
@@ -65,7 +66,7 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
 
     Expands labeled nuclei to cells, constrained to where mask is >0.
     """
-    distance = ndimage.distance_transform_cdt(nuclei == 0)
+    distance = ndi.distance_transform_cdt(nuclei == 0)
     cells = skimage.morphology.watershed(distance, nuclei, mask=mask)
     # remove cells touching the boundary
     if remove_boundary_cells:
@@ -80,7 +81,7 @@ def find_peaks(data, n=5):
     """Finds local maxima. At a maximum, the value is max - min in a 
     neighborhood of width `n`. Elsewhere it is zero.
     """
-    from scipy.ndimage import filters
+    filters = ndi.filters
     neighborhood_size = (1,)*(data.ndim-2) + (n,n)
     data_max = filters.maximum_filter(data, neighborhood_size)
     data_min = filters.minimum_filter(data, neighborhood_size)
@@ -101,7 +102,7 @@ def log_ndi(data, sigma=1, *args, **kwargs):
     Extra arguments are passed to scipy.ndimage.filters.gaussian_laplace.
     Inverts output and converts back to uint16.
     """
-    f = scipy.ndimage.filters.gaussian_laplace
+    f = ndi.filters.gaussian_laplace
     arr_ = -1 * f(data.astype(float), sigma, *args, **kwargs)
     arr_ = np.clip(arr_, 0, 65535) / 65535
     
@@ -159,7 +160,7 @@ class Align:
             if i == 0:
                 offsets += [(0, 0)]
             else:
-                offset, _, _ = skimage.feature.register_translation(
+                offset, _, _ = skimage.registration.phase_cross_correlation(
                                 src, target, upsample_factor=upsample_factor)
                 offsets += [offset]
         return np.array(offsets)
@@ -225,7 +226,7 @@ def find_nuclei(dapi, threshold, radius=15, area_min=50, area_max=500,
     labeled = filter_by_region(labeled, score, threshold, intensity_image=dapi) > 0
 
     # only fill holes below minimum area
-    filled = ndimage.binary_fill_holes(labeled)
+    filled = ndi.binary_fill_holes(labeled)
     difference = skimage.measure.label(filled!=labeled)
 
     change = filter_by_region(difference, lambda r: r.area < area_min, 0) > 0
@@ -281,14 +282,14 @@ def filter_by_region(labeled, score, threshold, intensity_image=None, relabel=Tr
 
 
 def apply_watershed(img, smooth=4):
-    distance = ndimage.distance_transform_edt(img)
+    distance = ndi.distance_transform_edt(img)
     if smooth > 0:
         distance = skimage.filters.gaussian(distance, sigma=smooth)
     local_max = skimage.feature.peak_local_max(
                     distance, indices=False, footprint=np.ones((3, 3)), 
                     exclude_border=False)
 
-    markers = ndimage.label(local_max)[0]
+    markers = ndi.label(local_max)[0]
     result = skimage.morphology.watershed(-distance, markers, mask=img)
     return result.astype(np.uint16)
 
