@@ -11,6 +11,8 @@ warnings.filterwarnings('ignore', message='precision loss when converting')
 import numpy as np
 import pandas as pd
 import skimage
+import skimage.morphology
+import ops.annotate
 import ops.features
 import ops.process
 import ops.io
@@ -29,7 +31,7 @@ class Snake():
 
     @staticmethod
     def _align_SBS(data, method='DAPI', upsample_factor=2, window=2, cutoff=1,
-        align_within_cycle=True, keep_trailing=False, n=1):
+        align_channels=slice(1, None), keep_trailing=False):
         """Rigid alignment of sequencing cycles and channels. 
 
         Parameters
@@ -81,12 +83,14 @@ class Snake():
 
         assert data.ndim == 4, 'Input data must have dimensions CYCLE, CHANNEL, I, J'
 
-        # align between SBS channels for each cycle
+        # align SBS channels for each cycle
         aligned = data.copy()
-        if align_within_cycle:
-            align_it = lambda x: Align.align_within_cycle(x, window=window, upsample_factor=upsample_factor)
-            
-            aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
+
+        if align_channels is not None:
+            align_it = lambda x: Align.align_within_cycle(
+                x, window=window, upsample_factor=upsample_factor)
+            aligned[:, align_channels] = np.array(
+                [align_it(x) for x in aligned[:, align_channels]])
             
 
         if method == 'DAPI':
@@ -537,6 +541,65 @@ class Snake():
                 .pipe(ops.in_situ.call_cells_mapping,df_pool))
 
     # PHENOTYPE FEATURE EXTRACTION
+
+    @staticmethod
+    def _annotate_SBS(log, df_reads, shape=(1024, 1024)):
+        # convert reads to a stack of integer-encoded bases
+        base_labels = ops.annotate.annotate_bases(df_reads, width=3)
+        cycles, channels, height, width = log.shape
+        annotated = np.zeros((cycles, channels + 1, height, width), 
+                            dtype=np.uint16)
+
+        annotated[:, :channels] = log
+        annotated[:, channels] = base_labels
+        return annotated
+
+
+    @staticmethod
+    def _annotate_SBS_extra(log, peaks, df_reads, barcodes, shape=(1024, 1024)):
+        df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
+        # convert reads to a stack of integer-encoded bases
+        plus = [[0, 1, 0],
+                [1, 1, 1],
+                [0, 1, 0]]
+        xcross = [[1, 0, 1],
+                  [0, 1, 0],
+                  [1, 0, 1]]
+        notch = [[1, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 0]]
+        notch2 = [[1, 1, 1],
+                 [1, 1, 1],
+                 [0, 1, 0]]
+        top_right = [[0, 0, 0],
+                     [0, 0, 0],
+                     [1, 0, 0]]
+
+        f = ops.annotate.annotate_bases
+        base_labels  = f(df_reads.query('mapped'), selem=notch)
+        base_labels += f(df_reads.query('~mapped'), selem=plus)
+        # Q_min converted to 30 point integer scale
+        Q_min = ops.annotate.annotate_points(df_reads, 'Q_min', selem=top_right)
+        Q_30 = (Q_min * 30).astype(int)
+        # a "donut" around each peak indicating the peak intensity
+        peaks_donut = skimage.morphology.dilation(peaks, selem=np.ones((3, 3)))
+        peaks_donut[peaks > 0] = 0 
+        # nibble some more
+        peaks_donut[base_labels.sum(axis=0) > 0] = 0
+        peaks_donut[Q_30 > 0] = 0
+
+        cycles, channels, height, width = log.shape
+        annotated = np.zeros((cycles, 
+            channels + 2, 
+            # channels + 3, 
+            height, width), dtype=np.uint16)
+
+        annotated[:, :channels] = log
+        annotated[:, channels] = base_labels
+        annotated[:, channels + 1] = peaks_donut
+        # annotated[:, channels + 2] = Q_30
+
+        return annotated[:, 1:]
 
     @staticmethod
     def _extract_features(data, labels, wildcards, features=None):
