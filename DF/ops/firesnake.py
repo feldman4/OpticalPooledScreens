@@ -58,9 +58,10 @@ class Snake():
             Threshold for removing extreme values from SBS channels when using method='SBS_mean'. Channels are normalized
             to the 70th percentile, and normalized values greater than `cutoff` are replaced by `cutoff`.
 
-        align_within_cycle : boolean, default True
-            If True, aligns SBS channels to each other within each channel. Useful in particular for cases where images 
-            for all stage positions are acquired for one SBS channel at a time, i.e., acquisition order of channels(positions).
+        align_channels : slice object or None, default slice(1,None)
+            If not None, aligns channels (defined by the passed slice object) to each other within each cycle. If
+            None, does not align channels within cycles. Useful in particular for cases where images for all stage 
+            positions are acquired for one SBS channel at a time, i.e., acquisition order of channels(positions).
 
         keep_trailing : boolean, default True
             If True, keeps only the minimum number of trailing channels across cycles. E.g., if one cycle contains 6 channels, 
