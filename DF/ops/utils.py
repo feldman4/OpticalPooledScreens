@@ -9,6 +9,26 @@ import decorator
 import numpy as np
 import pandas as pd
 
+def download_from_idr(files, dest_dir='.',ascp_path='ascp', public_key_path='asperaweb_id_dsa.openssh'):
+  import subprocess
+  
+  txt = []
+  for f in files:
+      txt += ['20191104-gcloud/' + f, f]
+  txt = '\n'.join(txt)
+
+  with open('pairlist.txt', 'w') as fh:
+      fh.write(txt)
+
+  options = '-T -l200m -P 33001 -i {} --file-pair-list=pairlist.txt --mode=recv --user=idr0071 --host=fasp.ebi.ac.uk'.format(public_key_path)
+
+  cmd = '{ascp} {options} {destination}'.format(ascp=ascp_path, options=options, destination=dest_dir)
+
+  output = subprocess.check_output(cmd, shell=True)
+
+  print(output.decode("utf-8"))
+  
+  subprocess.call('rm pairlist.txt', shell=True)
 
 # PYTHON
 def memoize(active=True, copy_numpy=True):
