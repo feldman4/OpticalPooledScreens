@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 def download_from_idr(files, dest_dir='.',ascp_path='ascp', public_key_path='asperaweb_id_dsa.openssh'):
-  import subprocess
+  import subprocess, os
 
   if not os.path.isdir(dest_dir):
         os.makedirs(dest_dir)
