@@ -3,31 +3,69 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def threshold_vs_mapping(df_mapped_reads,threshold_var='peak',ax=None,left_label='mapping_rate',right_label='mapped spots'):
+def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
+    """Plot the mapping rate and number of mapped spots against varying thresholds of 
+    peak intensity, quality score, or a user-defined metric.
+
+    Parameters
+    ----------
+    df_reads : pandas DataFrame
+        Table of extracted reads from Snake.call_reads(). Can be concatenated results from
+        multiple tiles, wells, etc.
+
+    barcodes : list of strings
+        Expected barcodes to map the reads to.
+
+    threshold_var : string, default 'peak'
+        Variable to apply varying thresholds to for comparing mapping rates. Standard variables are
+        'peak' and 'QC_min'. Can also use a user-defined variable, but must be a column of the df_reads
+        table.
+
+    ax : None or matplotlib axis object, default None
+        Optional. If not None, this is an axis object to plot on. Helpful when plotting on 
+        a subplot of a larger figure.
     
+    Returns
+    -------
+    df_summary : pandas DataFrame
+        Summary table of thresholds and associated mapping rates, number of spots mapped used for plotting.
+    """
+    # map reads
+    df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
+
+    # define thresholds range
+    if df_reads[threshold_var].max()<100:
+        thresholds = np.array(range(0,int(np.quantile(df_reads[threshold_var],q=0.99)*1000)))/1000
+    else:
+        thresholds = list(range(0,int(np.quantile(df_reads[threshold_var],q=0.99)),10))
+
+    # exclude spots not in cells
+    df_passed = df_reads.query('cell>0')
+
+    # iterate over thresholds
     mapping_rate =[]
     spots_mapped = []
-    if df_mapped_reads[threshold_var].max()<100:
-        thresholds = np.array(range(0,int(np.quantile(df_mapped_reads[threshold_var],q=0.99)*1000)))/1000
-    else:
-        thresholds = list(range(0,int(np.quantile(df_mapped_reads[threshold_var],q=0.99)),10))
-    df_passed = df_mapped_reads.query('cell>0')
     for threshold in thresholds:
         df_passed = df_passed.query('{} > @threshold'.format(threshold_var))
-        spots_mapped.append(df_passed.dropna(subset=['gene_symbol']).pipe(len))
-        mapping_rate.append(df_passed.dropna(subset=['gene_symbol']).pipe(len)/df_passed.pipe(len))
+        spots_mapped.append(df_passed[df_passed['mapped']].pipe(len))
+        mapping_rate.append(df_passed[df_passed['mapped']].pipe(len)/df_passed.pipe(len))
+
+    df_summary = pd.DataFrame(np.array([thresholds,mapping_rate,spots_mapped]).T,
+        columns=['{}_threshold'.format(threshold_var),'mapping_rate','mapped_spots'])
     
+    # plot
     if not ax:
-        ax = sns.lineplot(x = thresholds, y = mapping_rate);
+        ax = sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate');
     else:
-        sns.lineplot(x = thresholds, y = mapping_rate, ax=ax);
-    plt.ylabel(left_label,fontsize=18);
+        sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate', ax=ax);
+    plt.ylabel('mapping rate',fontsize=18);
     plt.xlabel('{} threshold'.format(threshold_var),fontsize=18);
     ax_right = ax.twinx()
-    sns.lineplot(x = thresholds, y = spots_mapped, ax = ax_right, color = 'coral')
-    plt.ylabel(right_label,fontsize=18);
-    plt.legend(ax.get_lines()+ax_right.get_lines(),[left_label,right_label],loc=7);
-    return thresholds, mapping_rate, spots_mapped
+    sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapped_spots', ax=ax_right, color='coral')
+    plt.ylabel('mapped spots',fontsize=18);
+    plt.legend(ax.get_lines()+ax_right.get_lines(),['mapping rate','mapped spots'],loc=7);
+
+    return df_summary
 
 def plot_count_heatmap(df,tile='tile',shape='square',return_summary=False,**kwargs):
     """Plot the count of items in df by well and tile in a convenient plate layout.
