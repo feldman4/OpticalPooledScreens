@@ -31,10 +31,10 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
         Summary table of thresholds and associated mapping rates, number of spots mapped used for plotting.
     """
     # exclude spots not in cells
-    df_passed = df_reads.query('cell>0')
+    df_passed = df_reads.copy().query('cell>0')
 
     # map reads
-    df_passed['mapped'] = df_passed['barcode'].isin(barcodes)
+    df_passed.loc[:,'mapped'] = df_passed['barcode'].isin(barcodes)
 
     # define thresholds range
     if df_reads[threshold_var].max()<100:
