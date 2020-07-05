@@ -58,11 +58,11 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
         ax = sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate');
     else:
         sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate', ax=ax);
-    plt.ylabel('mapping rate',fontsize=18);
-    plt.xlabel('{} threshold'.format(threshold_var),fontsize=18);
+    ax.set_ylabel('mapping rate',fontsize=18);
+    ax.set_xlabel('{} threshold'.format(threshold_var),fontsize=18);
     ax_right = ax.twinx()
     sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapped_spots', ax=ax_right, color='coral')
-    plt.ylabel('mapped spots',fontsize=18);
+    ax_right.set_ylabel('mapped spots',fontsize=18);
     plt.legend(ax.get_lines()+ax_right.get_lines(),['mapping rate','mapped spots'],loc=7);
 
     return df_summary
