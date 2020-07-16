@@ -113,7 +113,7 @@ def plot_count_heatmap(df,tile='tile',shape='square',return_summary=False,**kwar
         return df_summary,axes
     return axes
 
-def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='6W_sbs',return_summary=False,**kwargs):
+def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='square',return_summary=False,**kwargs):
     """Plot the mapping rate of cells by well and tile in a convenient plate layout.
 
     Parameters
@@ -128,8 +128,8 @@ def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='6W_sb
         Snake.extract_phenotype_minimal(data_phenotype=nulcei,nuclei=nuclei) often used as sbs_cell_info rule in 
         Snakemake.
 
-    mapping_to : {'one', 'all'}
-        Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'all' includes cells
+    mapping_to : {'one', 'any'}
+        Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'any' includes cells
         mapping to at least 1 barcode.
 
     shape : str, default 'square'
@@ -184,7 +184,7 @@ def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='6W_sb
         return df_summary,axes
     return axes
 
-def plot_read_mapping_heatmap(df_reads,df_pool,shape='6W_sbs',return_summary=False,**kwargs):
+def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=False,**kwargs):
     """Plot the mapping rate of reads by well and tile in a convenient plate layout.
 
     Parameters
@@ -193,9 +193,8 @@ def plot_read_mapping_heatmap(df_reads,df_pool,shape='6W_sbs',return_summary=Fal
         DataFrame of all reads output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells 
         of Snake.call_reads().
 
-    df_pool : pandas DataFrame
-        DataFrame of barcode sequences in the designed perturbation pool. Necessary columns are 'gene_symbol' and
-        'sgRNA'.
+    barcodes : list, pandas Series, or pandas DataFrame
+        Barcode sequences in the designed perturbation pool. If DataFrame, required column name is 'sgRNA'.
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap
@@ -216,6 +215,14 @@ def plot_read_mapping_heatmap(df_reads,df_pool,shape='6W_sbs',return_summary=Fal
 
     axes : np.array of matplotlib Axes objects
     """
+
+    if isinstance(barcodes,pd.Series):
+        df_pool = df_pool.rename('sgRNA').to_frame()
+    elif isinstance(barcodes,list):
+        df_pool = pd.DataFrame(data=df_pool,columns=['sgRNA'])
+    elif isinstance(barcodes,pd.DataFrame):
+        df_pool = barcodes
+
     df_reads = df_reads[['well','tile','barcode']].assign(prefix_length=lambda x: x['barcode'].str.len())
 
     # in some cases different wells will have different numbers of completed sbs cycles
@@ -249,7 +256,7 @@ def plot_read_mapping_heatmap(df_reads,df_pool,shape='6W_sbs',return_summary=Fal
         return df_summary,axes
     return axes
 
-def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape=None, return_summary=False, **kwargs):
+def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape='square', return_summary=False, **kwargs):
     """Plot the rate of matching segmented cells between phenotype and SBS datasets by well and tile 
     in a convenient plate layout.
 
@@ -270,7 +277,7 @@ def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape=None, retur
         a phenotype cell. Should match the information stored in df_info; if df_info is a table of all segmented cells from 
         sbs tiles then target should be set as 'sbs'.
 
-    shape : str, default None
+    shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap. Default infers shape based on value of target.
 
     return_summary : boolean, default False
@@ -334,6 +341,7 @@ def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs):
         Summary DataFrame of values to plot, expects one row for each (well, tile) combination.
 
     metric : str, default None
+        Column of `df` to use for plotting the heatmap. If None, attempts to infer based on column names.
 
     shape : {'square','6W_ph','6W_sbs',list}, default 'square'
         Shape of subplot for each well. 
