@@ -217,9 +217,9 @@ def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=Fa
     """
 
     if isinstance(barcodes,pd.Series):
-        df_pool = df_pool.rename('sgRNA').to_frame()
+        df_pool = barcodes.rename('sgRNA').to_frame()
     elif isinstance(barcodes,list):
-        df_pool = pd.DataFrame(data=df_pool,columns=['sgRNA'])
+        df_pool = pd.DataFrame(data=barcodes,columns=['sgRNA'])
     elif isinstance(barcodes,pd.DataFrame):
         df_pool = barcodes
 
