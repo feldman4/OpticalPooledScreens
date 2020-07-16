@@ -40,7 +40,7 @@ rule align:
     input:
         expand('input/10X_{cycle}/10X_{cycle}_{{well}}_Tile-{{tile}}.sbs.tif', cycle=CYCLES)
     output:
-        'process/10X_{well}_Tile-{tile}.aligned.tif'
+        temp('process/10X_{well}_Tile-{tile}.aligned.tif')
     run:
         Snake.align_SBS(output=output, data=input, 
             display_ranges=DISPLAY_RANGES, luts=LUTS)
@@ -59,7 +59,7 @@ rule compute_std:
     input:
         'process/10X_{well}_Tile-{tile}.log.tif'
     output:
-        'process/10X_{well}_Tile-{tile}.std.tif'
+        temp('process/10X_{well}_Tile-{tile}.std.tif')
     run:
         Snake.compute_std(output=output, data=input[0], remove_index=0)
 
@@ -67,7 +67,7 @@ rule find_peaks:
     input:
         'process/10X_{well}_Tile-{tile}.std.tif'
     output:
-        'process/10X_{well}_Tile-{tile}.peaks.tif'
+        temp('process/10X_{well}_Tile-{tile}.peaks.tif')
     run:
         Snake.find_peaks(output=output, data=input[0]) 
 
@@ -77,7 +77,7 @@ rule max_filter:
     input:
         'process/10X_{well}_Tile-{tile}.log.tif'
     output:
-        'process/10X_{well}_Tile-{tile}.maxed.tif'
+        temp('process/10X_{well}_Tile-{tile}.maxed.tif')
     run:
         Snake.max_filter(output=output, data=input[0], width=3,
             remove_index=0, display_ranges=DISPLAY_RANGES[1:], luts=LUTS[1:]) 
