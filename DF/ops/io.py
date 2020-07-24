@@ -178,7 +178,7 @@ def save_stack(name, data, luts=None, display_ranges=None,
                                ])
 
 def format_input(input_table, n_jobs=1, **kwargs):
-    df = pd.read_excel(input_table)
+    df = pd.read_excel(input_table).drop_duplicates()
     
     def process_site(output_file,df_input):
         stacked = np.array([read_stack(input_file) for input_file in df_input.sort_values('channel')['original filename']])
