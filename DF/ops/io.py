@@ -177,6 +177,19 @@ def save_stack(name, data, luts=None, display_ranges=None,
                                (50839, 'B', len(tag_50839), tag_50839, True),
                                ])
 
+def format_input(input_table, n_jobs=1, **kwargs):
+    df = pd.read_excel(input_table)
+    
+    def process_site(output_file,df_input):
+        stacked = np.array([read_stack(input_file) for input_file in df_input.sort_values('channel')['original filename']])
+        save_stack(output_file,stacked)
+        
+    if n_jobs != 1:
+        from joblib import Parallel, delayed
+        Parallel(n_jobs=n_jobs, **kwargs)(delayed(process_site)(output_file,df_input) for output_file,df_input in df.groupby('snakemake filename'))
+    else:
+        for output_file,df_input in df.groupby('snakemake filename'):
+            process_site(output_file,df_input)
 
 def infer_luts_display_ranges(data, luts, display_ranges):
     """Deal with user input.
