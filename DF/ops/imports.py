@@ -26,7 +26,7 @@ from .io import save_stack as save
 
 from .utils import or_join, and_join
 from .utils import groupby_reduce_concat, groupby_histogram, replace_cols
-from .utils import pile, montage, make_tiles, trim, join_stacks, csv_frame
+from .utils import pile, montage, make_tiles, trim, join_stacks, csv_frame, combine_tables
 
 from .annotate import annotate_labels, annotate_points, annotate_bases
 
