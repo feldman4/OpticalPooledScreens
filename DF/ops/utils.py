@@ -328,7 +328,7 @@ def csv_frame(files_or_search, tqdn=False, n_jobs=1, **kwargs):
 
     return pd.concat(arr, sort=True)
 
-  def combine_tables(tag, output_filetype='hdf', subdir='process', tqdn=False, n_jobs=1):
+def combine_tables(tag, output_filetype='hdf', subdir='process', tqdn=False, n_jobs=1):
     files = glob('{subdir}/*.{tag}.csv'.format(subdir=subdir,tag=tag))
 
     df = csv_frame(files, tqdn=tqdn, n_jobs=n_jobs)
