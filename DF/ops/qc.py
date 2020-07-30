@@ -160,10 +160,10 @@ def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='squar
 
     if mapping_to == 'one':
         metric = 'fraction of cells mapping to 1 barcode'
-        df = df.assign(mapped = lambda x: x['sgRNA_0'].notna() & x['sgRNA_1'].isna())
+        df = df.assign(mapped = lambda x: x[['sgRNA_0','sgRNA_1']].notna().sum(axis=1)==1)
     elif mapping_to == 'any':
         metric = 'fraction of cells mapping to >=1 barcode'
-        df = df.assign(mapped = lambda x: x['sgRNA_0'].notna())
+        df = df.assign(mapped = lambda x: x[['sgRNA_0','sgRNA_1']].notna().sum(axis=1)>0)
     else:
         raise ValueError('mapping_to={} not implemented'.format(mapping_to))
 
