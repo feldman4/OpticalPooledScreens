@@ -296,7 +296,7 @@ def expand_sep(df, col, sep=','):
      .assign(**{col: values}))
 
 
-def csv_frame(files_or_search, tqdn=False, **kwargs):
+def csv_frame(files_or_search, tqdn=False, n_jobs=1, **kwargs):
     """Convenience function, pass either a list of files or a 
     glob wildcard search term.
     """
@@ -316,9 +316,26 @@ def csv_frame(files_or_search, tqdn=False, **kwargs):
     if tqdn:
         import tqdm.notebook
         tqdm_notebook = tqdm.notebook.tqdm
-        return pd.concat([read_csv(f) for f in tqdm_notebook(files)], sort=True)
+        files_iter = tqdm_notebook(files)
     else:
-        return pd.concat([read_csv(f) for f in files], sort=True)
+        files_iter = files
+
+    if n_jobs != 1:
+        from joblib import Parallel, delayed
+        arr = Parallel(n_jobs=n_jobs)(delayed(read_csv)(f) for f in files_iter)
+    else:
+        arr = [read_csv(f) for f in files_iter]
+
+    return pd.concat(arr, sort=True)
+
+  def combine_tables(tag, output_filetype='hdf', subdir='process', tqdn=False, n_jobs=1):
+    files = glob('{subdir}/*.{tag}.csv'.format(subdir=subdir,tag=tag))
+
+    df = csv_frame(files, tqdn=tqdn, n_jobs=n_jobs)
+    if output_filetype=='csv':
+        df.to_csv(tag+'.csv')
+    else:
+        df.to_hdf(tag + '.hdf', tag, mode='w')
 
 
 def gb_apply_parallel(df, cols, func, n_jobs=None, tqdn=True):
