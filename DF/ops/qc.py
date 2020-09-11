@@ -3,7 +3,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
+def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None, **kwargs):
     """Plot the mapping rate and number of mapped spots against varying thresholds of 
     peak intensity, quality score, or a user-defined metric.
 
@@ -24,6 +24,11 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
     ax : None or matplotlib axis object, default None
         Optional. If not None, this is an axis object to plot on. Helpful when plotting on 
         a subplot of a larger figure.
+
+    Other Parameters
+    ----------------
+    **kwargs
+        Keyword arguments passed to sns.lineplot()
     
     Returns
     -------
@@ -55,13 +60,13 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None):
     
     # plot
     if not ax:
-        ax = sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate');
+        ax = sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate',**kwargs);
     else:
-        sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate', ax=ax);
+        sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapping_rate', ax=ax, **kwargs);
     ax.set_ylabel('mapping rate',fontsize=18);
     ax.set_xlabel('{} threshold'.format(threshold_var),fontsize=18);
     ax_right = ax.twinx()
-    sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapped_spots', ax=ax_right, color='coral')
+    sns.lineplot(data=df_summary, x='{}_threshold'.format(threshold_var), y='mapped_spots', ax=ax_right, color='coral',**kwargs)
     ax_right.set_ylabel('mapped spots',fontsize=18);
     plt.legend(ax.get_lines()+ax_right.get_lines(),['mapping rate','mapped spots'],loc=7);
 
