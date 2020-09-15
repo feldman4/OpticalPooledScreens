@@ -452,5 +452,5 @@ def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs):
     cbar.set_label(metric,fontsize=18)
     cbar_ax.yaxis.set_ticks_position('left')
     
-    return axes
+    return axes, cbar
     
