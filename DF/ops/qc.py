@@ -223,10 +223,14 @@ def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=Fa
 
     if isinstance(barcodes,pd.Series):
         df_pool = barcodes.rename('sgRNA').to_frame()
-    elif isinstance(barcodes,list):
-        df_pool = pd.DataFrame(data=barcodes,columns=['sgRNA'])
     elif isinstance(barcodes,pd.DataFrame):
         df_pool = barcodes
+    else:
+        try:
+            df_pool = pd.DataFrame(data=barcodes,columns=['sgRNA'])
+        except:
+            raise ValueError('''`barcodes` must be a pd.Series, pd.DataFrame with column `sgRNA1`, 
+                or a valid type for the `data` argument for creating a pandas DataFrame.''')
 
     df_reads = df_reads[['well','tile','barcode']].assign(prefix_length=lambda x: x['barcode'].str.len())
 
