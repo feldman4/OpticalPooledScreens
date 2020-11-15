@@ -271,10 +271,10 @@ class Snake():
             .pipe(ops.in_situ.call_cells))
 
     @staticmethod
-    def _annotate_SBS(log, df_reads, shape=(1024, 1024)):
+    def _annotate_SBS(log, df_reads):
         # convert reads to a stack of integer-encoded bases
-        base_labels = ops.annotate.annotate_bases(df_reads, width=3)
         cycles, channels, height, width = log.shape
+        base_labels = ops.annotate.annotate_bases(df_reads, width=3, shape=(height, width))
         annotated = np.zeros((cycles, channels + 1, height, width), 
                             dtype=np.uint16)
 
