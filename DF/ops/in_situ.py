@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
-from scipy.spatial import cKDTree
-
 from .constants import *
 from . import utils
 
-def extract_base_intensity(maxed, peaks, cells, threshold_peaks):
 
+def extract_base_intensity(maxed, peaks, cells, threshold_peaks):
+    """Extract values from `maxed` where `peaks` exceeds `threshold_peaks`. Also extract
+    cell label at read position from `cells` and i,j positions of reads.
+    """
     # reads outside of cells get label 0
     read_mask = (peaks > threshold_peaks)
     values = maxed[:, :, read_mask].transpose([2, 0, 1])
@@ -16,7 +17,10 @@ def extract_base_intensity(maxed, peaks, cells, threshold_peaks):
     return values, labels, positions
 
 
-def format_bases(values, labels, positions, cycles, bases):    
+def format_bases(values, labels, positions, cycles, bases):
+    """Arrange ?x?x? arrays of base intensity information into a dataframe in "long" format (one
+    row per observation).
+    """
     index = (CYCLE, cycles), (CHANNEL, bases)
     try:
         df = utils.ndarray_to_dataframe(values, index)
@@ -26,12 +30,12 @@ def format_bases(values, labels, positions, cycles, bases):
 
     df_positions = pd.DataFrame(positions, columns=[POSITION_I, POSITION_J])
     df = (df.stack([CYCLE, CHANNEL])
-       .reset_index()
-       .rename(columns={0: INTENSITY, 'level_0': READ})
-       .join(pd.Series(labels, name=CELL), on=READ)
-       .join(df_positions, on=READ)
-       .sort_values([CELL, READ, CYCLE])
-       )
+          .reset_index()
+          .rename(columns={0: INTENSITY, 'level_0': READ})
+          .join(pd.Series(labels, name=CELL), on=READ)
+          .join(df_positions, on=READ)
+          .sort_values([CELL, READ, CYCLE])
+          )
 
     return df
 
@@ -69,29 +73,82 @@ def call_cells(df_reads):
     """
     cols = [WELL, TILE, CELL]
     s = (df_reads
-       .drop_duplicates([WELL, TILE, READ])
-       .groupby(cols)[BARCODE]
-       .value_counts()
-       .rename('count')
-       .sort_values(ascending=False)
-       .reset_index()
-       .groupby(cols)
-        )
+         .drop_duplicates([WELL, TILE, READ])
+         .groupby(cols)[BARCODE]
+         .value_counts()
+         .rename('count')
+         .sort_values(ascending=False)
+         .reset_index()
+         .groupby(cols)
+         )
 
     return (df_reads
-      .join(s.nth(0)[BARCODE].rename(BARCODE_0),       on=cols)
-      .join(s.nth(0)['count'].rename(BARCODE_COUNT_0), on=cols)
-      .join(s.nth(1)[BARCODE].rename(BARCODE_1),       on=cols)
-      .join(s.nth(1)['count'].rename(BARCODE_COUNT_1), on=cols)
-      .join(s['count'].sum() .rename(BARCODE_COUNT),   on=cols)
-      .assign(**{BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
-                 BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0)})
-      .drop_duplicates(cols)
-      .drop([READ, BARCODE], axis=1) # drop the read
-      .drop([POSITION_I, POSITION_J], axis=1) # drop the read coordinates
-      .filter(regex='^(?!Q_)') # remove read quality scores
-      .query('cell > 0') # remove reads not in a cell
-    )
+            .join(s.nth(0)[BARCODE].rename(BARCODE_0), on=cols)
+            .join(s.nth(0)['count'].rename(BARCODE_COUNT_0), on=cols)
+            .join(s.nth(1)[BARCODE].rename(BARCODE_1), on=cols)
+            .join(s.nth(1)['count'].rename(BARCODE_COUNT_1), on=cols)
+            .join(s['count'].sum() .rename(BARCODE_COUNT), on=cols)
+            .assign(**{BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
+                       BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0)})
+            .drop_duplicates(cols)
+            .drop([READ, BARCODE], axis=1)  # drop the read
+            # drop the read coordinates
+            .drop([POSITION_I, POSITION_J], axis=1)
+            .filter(regex='^(?!Q_)')  # remove read quality scores
+            .query('cell > 0')  # remove reads not in a cell
+            )
+
+
+def call_cells_mapping(df_reads, df_pool):
+    """Determine count of top barcodes, barcodes prioritized if barcode maps to given pool design
+    """
+    guide_info_cols = [SGRNA, GENE_SYMBOL, GENE_ID]
+
+    # map reads
+    df_mapped = (pd.merge(df_reads, df_pool[[PREFIX]], how='left', left_on=BARCODE, right_on=PREFIX)
+                 .assign(mapped=lambda x: pd.notnull(x[PREFIX]))
+                 .drop(PREFIX, axis=1)
+                 )
+
+    # choose top 2 barcodes, priority given by (mapped,count)
+    cols = [WELL, TILE, CELL]
+    s = (df_mapped
+         .drop_duplicates([WELL, TILE, READ])
+         .groupby(cols + ['mapped'])[BARCODE]
+         .value_counts()
+         .rename('count')
+         .reset_index()
+         .sort_values(['mapped', 'count'], ascending=False)
+         .groupby(cols)
+         )
+
+    df_cells = (df_reads
+                .join(s.nth(0)[BARCODE].rename(BARCODE_0), on=cols)
+                .join(s.nth(0)['count'].rename(BARCODE_COUNT_0), on=cols)
+                .join(s.nth(1)[BARCODE].rename(BARCODE_1), on=cols)
+                .join(s.nth(1)['count'].rename(BARCODE_COUNT_1), on=cols)
+                .join(s['count'].sum() .rename(BARCODE_COUNT), on=cols)
+                .assign(**{BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
+                           BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0)})
+                .drop_duplicates(cols)
+                .drop([READ, BARCODE], axis=1)  # drop the read
+                # drop the read coordinates
+                .drop([POSITION_I, POSITION_J], axis=1)
+                .filter(regex='^(?!Q_)')  # remove read quality scores
+                .query('cell > 0')  # remove reads not in a cell
+                )
+
+    # merge guide info
+    df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], how='left', left_on=BARCODE_0, right_on=PREFIX)
+                .rename({col: col + '_0' for col in guide_info_cols}, axis=1)
+                .drop(PREFIX, axis=1)
+                )
+    df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], how='left', left_on=BARCODE_1, right_on=PREFIX)
+                .rename({col: col + '_1' for col in guide_info_cols}, axis=1)
+                .drop(PREFIX, axis=1)
+                )
+
+    return df_cells
 
 
 def dataframe_to_values(df, value='intensity'):
@@ -107,8 +164,10 @@ def dataframe_to_values(df, value='intensity'):
 
 
 def transform_medians(X):
-    """For each dimension, find points where that dimension is max. Use median of those points to define new axes. 
-    Describe with linear transformation W so that W * X = Y.
+    """Estimate and correct differences in channel intensity and spectral overlap among sequencing
+    channels. For each channel, find points where the largest signal is from that channel. Use the 
+    median of these points to define new basis vectors. Describe with linear transformation W 
+    so that W * X = Y, where Y is the corrected data.
     """
 
     def get_medians(X):
@@ -126,6 +185,9 @@ def transform_medians(X):
 
 
 def call_barcodes(df_bases, Y, cycles=12, channels=4):
+    """Use the argmax over channels in corrected data `Y` to identify bases in each cycle. Result
+    dataframe has one row per read and preserves any extra information from `df_bases`.
+    """
     bases = sorted(set(df_bases[CHANNEL]))
     if any(len(x) != 1 for x in bases):
         raise ValueError('supplied weird bases: {0}'.format(bases))
@@ -134,16 +196,17 @@ def call_barcodes(df_bases, Y, cycles=12, channels=4):
     Q = quality(Y.reshape(-1, cycles, channels))
     # needed for performance later
     for i in range(len(Q[0])):
-        df_reads['Q_%d' % i] = Q[:,i]
- 
+        df_reads['Q_%d' % i] = Q[:, i]
+
     return (df_reads
-        .assign(Q_min=lambda x: x.filter(regex='Q_\d+').min(axis=1))
-        .drop([CYCLE, CHANNEL, INTENSITY], axis=1)
-        )
+            .assign(Q_min=lambda x: x.filter(regex='Q_\d+').min(axis=1))
+            .drop([CYCLE, CHANNEL, INTENSITY], axis=1)
+            )
 
 
 def call_bases_fast(values, bases):
-    """4-color: bases='ACGT'
+    """Apply argmax to `values` and form strings by indexing `bases` (e.g., "ACGT" if channel
+    dimension in `values` is pre-sorted).
     """
     assert values.ndim == 3
     assert values.shape[2] == len(bases)
@@ -153,38 +216,45 @@ def call_bases_fast(values, bases):
 
 
 def quality(X):
+    """Define an ad-hoc quality score per sequencing call based on the highest and 
+    second-highest channels. Adjusted empirically to give reasonable results with 4-color 
+    sequencing.
+    """
     X = np.abs(np.sort(X, axis=-1).astype(float))
     Q = 1 - np.log(2 + X[..., -2]) / np.log(2 + X[..., -1])
     Q = (Q * 2).clip(0, 1)
     return Q
 
 
-def reads_to_fastq(df, microscope='MN', dataset='DS', flowcell='FC'):
-
-    wrap = lambda x: '{' + x + '}'
-    join_fields = lambda xs: ':'.join(map(wrap, xs))
+def reads_to_fastq(df_reads, microscope='MN', dataset='DS', flowcell='FC'):
+    """Convert reads to fastq format, including quality, tile position, and x,y position.
+    """
+    def wrap(x): return '{' + x + '}'
+    def join_fields(xs): return ':'.join(map(wrap, xs))
 
     a = '@{m}:{d}:{f}'.format(m=microscope, d=dataset, f=flowcell)
     b = join_fields([WELL, CELL, 'well_tile', READ, POSITION_I, POSITION_J])
     c = '\n{b}\n+\n{{phred}}'.format(b=wrap(BARCODE))
-    fmt = a + b + c 
-    
-    well_tiles = sorted(set(df[WELL] + '_' + df[TILE]))
+    fmt = a + b + c
+
+    well_tiles = sorted(set(df_reads[WELL] + '_' + df_reads[TILE]))
     fields = [WELL, TILE, CELL, READ, POSITION_I, POSITION_J, BARCODE]
-    
-    Q = df.filter(like='Q_').values
-    
+
+    Q = df_reads.filter(like='Q_').values
+
     reads = []
-    for i, row in enumerate(df[fields].values):
+    for i, row in enumerate(df_reads[fields].values):
         d = dict(zip(fields, row))
         d['phred'] = ''.join(phred(q) for q in Q[i])
         d['well_tile'] = well_tiles.index(d[WELL] + '_' + d[TILE])
         reads.append(fmt.format(**d))
-    
+
     return reads
-    
+
 
 def dataframe_to_fastq(df, file, dataset):
+    """Dump reads to fastq format. May be useful for applying NGS-specific tools like FastQC.
+    """
     s = '\n'.join(reads_to_fastq(df, dataset))
     with open(file, 'w') as fh:
         fh.write(s)
@@ -206,9 +276,12 @@ def phred(q):
 
 
 def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
-        verbose=True, ij=(POSITION_I, POSITION_J)):
-    """Assigns -1 to clusters with only one cell.
+                 verbose=True, ij=(POSITION_I, POSITION_J)):
+    """Define spatial clusters based on barcode identity. Rows with the same value in `barcode_col`
+    are assigned to a cluster if `ij` positions are within `radius`. Assigns cluster index -1 to 
+    clusters with only one cell.
     """
+    from scipy.spatial import cKDTree
     import networkx as nx
 
     I, J = ij
@@ -241,12 +314,14 @@ def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
     df_cells = df_cells.copy()
     df_cells[CLUSTER] = cluster_index
     df_cells[CLUSTER_SIZE] = (df_cells
-        .groupby(CLUSTER)[barcode_col].transform('size'))
+                              .groupby(CLUSTER)[barcode_col].transform('size'))
     df_cells.loc[df_cells[CLUSTER] == -1, CLUSTER_SIZE] = 1
     return df_cells
 
 
 def index_singleton_clusters(clusters):
+    """Replace cluster labels of -1 with ascending integers larger than the maximum cluster index.
+    """
     clusters = clusters.copy()
     filt = clusters == -1
     n = clusters.max()
@@ -255,16 +330,19 @@ def index_singleton_clusters(clusters):
 
 
 def join_by_cell_location(df_cells, df_ph, max_distance=4):
-    """Can speed up over independent fields of view with 
-    `utils.groupby_apply2`.
+    """Join together dataframes representing in situ sequencing data and phenotypic data on a 
+    per-cell basis. Datasets must already be spatially aligned; cells are matched within 
+    max_distance` (typically less than radius of cell nucleus) based on global position 
+    (columns `global_x`, `global_y`).
+    
+    Can speed up over independent fields of view with `utils.groupby_apply2`.
     """
-    # df_cells = df_cells.sort_values(['well', 'tile', 'cell'])
-    # df_ph = df_ph.sort_values(['well', 'tile', 'cell'])
+    from scipy.spatial import cKDTree
     i_tree = df_ph['global_y']
     j_tree = df_ph['global_x']
     i_query = df_cells['global_y']
     j_query = df_cells['global_x']
-    
+
     kdt = cKDTree(list(zip(i_tree, j_tree)))
     distance, index = kdt.query(list(zip(i_query, j_query)))
     cell_ph = df_ph.iloc[index]['cell'].pipe(list)
@@ -272,9 +350,7 @@ def join_by_cell_location(df_cells, df_ph, max_distance=4):
     cols_right = ['well', 'tile', 'cell']
     cols_ph = [c for c in df_ph.columns if c not in df_cells.columns]
     return (df_cells
-                .assign(cell_ph=cell_ph, distance=distance)
-                .query('distance < @max_distance')
-                .join(df_ph.set_index(cols_right)[cols_ph], on=cols_left)
-                # .drop(['cell_ph'], axis=1)
-               )
-
+            .assign(cell_ph=cell_ph, distance=distance)
+            .query('distance < @max_distance')
+            .join(df_ph.set_index(cols_right)[cols_ph], on=cols_left)
+            )
