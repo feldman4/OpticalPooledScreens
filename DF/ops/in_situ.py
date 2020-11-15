@@ -99,54 +99,63 @@ def call_cells(df_reads):
             )
 
 
-def call_cells_mapping(df_reads, df_pool):
-    """Determine count of top barcodes, barcodes prioritized if barcode maps to given pool design
+def call_cells_mapping(df_reads, df_pool=None):
+    """Determine count of top two barcodes for each cell. If `df_pool` is 
+    provided, barcodes that map to designed sequences will be prioritized.
     """
-    guide_info_cols = [SGRNA, GENE_SYMBOL, GENE_ID]
-
-    # map reads
-    df_mapped = (pd.merge(df_reads, df_pool[[PREFIX]], how='left', left_on=BARCODE, right_on=PREFIX)
-                 .assign(mapped=lambda x: pd.notnull(x[PREFIX]))
-                 .drop(PREFIX, axis=1)
-                 )
+    if df_pool is not None:
+        guide_info_cols = [SGRNA, GENE_SYMBOL, GENE_ID]
+        # map reads
+        df_mapped = (pd.merge(df_reads, df_pool[[PREFIX]], 
+                              how='left', left_on=BARCODE, right_on=PREFIX)
+            .assign(mapped=lambda x: pd.notnull(x[PREFIX]))
+            .drop(PREFIX, axis=1)
+            )
+        extra_col = ['mapped']
+    else:
+        df_mapped = df_reads
+        extra_col = []
 
     # choose top 2 barcodes, priority given by (mapped,count)
     cols = [WELL, TILE, CELL]
     s = (df_mapped
-         .drop_duplicates([WELL, TILE, READ])
-         .groupby(cols + ['mapped'])[BARCODE]
-         .value_counts()
-         .rename('count')
-         .reset_index()
-         .sort_values(['mapped', 'count'], ascending=False)
-         .groupby(cols)
-         )
+        .drop_duplicates([WELL, TILE, READ])
+        .groupby(cols + extra_col)[BARCODE]
+        .value_counts()
+        .rename('count')
+        .reset_index()
+        .sort_values(extra_col + ['count'], ascending=False)
+        .groupby(cols)
+        )
 
     df_cells = (df_reads
-                .join(s.nth(0)[BARCODE].rename(BARCODE_0), on=cols)
-                .join(s.nth(0)['count'].rename(BARCODE_COUNT_0), on=cols)
-                .join(s.nth(1)[BARCODE].rename(BARCODE_1), on=cols)
-                .join(s.nth(1)['count'].rename(BARCODE_COUNT_1), on=cols)
-                .join(s['count'].sum() .rename(BARCODE_COUNT), on=cols)
-                .assign(**{BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
-                           BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0)})
-                .drop_duplicates(cols)
-                .drop([READ, BARCODE], axis=1)  # drop the read
-                # drop the read coordinates
-                .drop([POSITION_I, POSITION_J], axis=1)
-                .filter(regex='^(?!Q_)')  # remove read quality scores
-                .query('cell > 0')  # remove reads not in a cell
-                )
+        .join(s.nth(0)[BARCODE].rename(BARCODE_0), on=cols)
+        .join(s.nth(0)['count'].rename(BARCODE_COUNT_0), on=cols)
+        .join(s.nth(1)[BARCODE].rename(BARCODE_1), on=cols)
+        .join(s.nth(1)['count'].rename(BARCODE_COUNT_1), on=cols)
+        .join(s['count'].sum() .rename(BARCODE_COUNT), on=cols)
+        .assign(**{BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
+                    BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0)})
+        .drop_duplicates(cols)
+        .drop([READ, BARCODE], axis=1)  # drop the read
+        # drop the read coordinates
+        .drop([POSITION_I, POSITION_J], axis=1)
+        .filter(regex='^(?!Q_)')  # remove read quality scores
+        .query('cell > 0')  # remove reads not in a cell
+        )
 
-    # merge guide info
-    df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], how='left', left_on=BARCODE_0, right_on=PREFIX)
-                .rename({col: col + '_0' for col in guide_info_cols}, axis=1)
-                .drop(PREFIX, axis=1)
-                )
-    df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], how='left', left_on=BARCODE_1, right_on=PREFIX)
-                .rename({col: col + '_1' for col in guide_info_cols}, axis=1)
-                .drop(PREFIX, axis=1)
-                )
+    if df_pool is not None:
+        # merge guide info
+        df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], 
+                             how='left', left_on=BARCODE_0, right_on=PREFIX)
+            .rename({col: col + '_0' for col in guide_info_cols}, axis=1)
+            .drop(PREFIX, axis=1)
+            )
+        df_cells = (pd.merge(df_cells, df_pool[[PREFIX] + guide_info_cols], 
+                             how='left', left_on=BARCODE_1, right_on=PREFIX)
+            .rename({col: col + '_1' for col in guide_info_cols}, axis=1)
+            .drop(PREFIX, axis=1)
+            )
 
     return df_cells
 
