@@ -72,7 +72,7 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None, 
 
     return df_summary
 
-def plot_count_heatmap(df,tile='tile',shape='square',return_summary=False,**kwargs):
+def plot_count_heatmap(df,tile='tile',shape='square',plate='6W',return_summary=False,**kwargs):
     """Plot the count of items in df by well and tile in a convenient plate layout.
     Useful for evaluating cell and read counts across wells. The colorbar label can 
     be modified with:
@@ -87,6 +87,9 @@ def plot_count_heatmap(df,tile='tile',shape='square',return_summary=False,**kwar
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap
+
+    plate : {'6W','24W','96W'}
+        Plate type for plot_plate_heatmap
 
     return_summary : boolean, default False
         If true, returns df_summary
@@ -112,13 +115,14 @@ def plot_count_heatmap(df,tile='tile',shape='square',return_summary=False,**kwar
                   .reset_index()
                  )
 
-    axes = plot_plate_heatmap(df_summary,shape=shape,**kwargs)
+    axes = plot_plate_heatmap(df_summary,shape=shape,plate=plate,**kwargs)
 
     if return_summary:
         return df_summary,axes
     return axes
 
-def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='square',return_summary=False,**kwargs):
+def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='square', plate='6W',
+    return_summary=False,**kwargs):
     """Plot the mapping rate of cells by well and tile in a convenient plate layout.
 
     Parameters
@@ -139,6 +143,9 @@ def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='squar
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap
+
+    plate : {'6W','24W','96W'}
+        Plate type for plot_plate_heatmap
 
     return_summary : boolean, default False
         If true, returns df_summary
@@ -183,13 +190,13 @@ def plot_cell_mapping_heatmap(df_cells,df_sbs_info,mapping_to='one',shape='squar
                   .drop(columns='mapped')
                  )
 
-    axes = plot_plate_heatmap(df_summary,shape=shape,**kwargs)
+    axes = plot_plate_heatmap(df_summary,shape=shape,plate=plate,**kwargs)
 
     if return_summary:
         return df_summary,axes
     return axes
 
-def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=False,**kwargs):
+def plot_read_mapping_heatmap(df_reads, barcodes, shape='square', plate='6W', return_summary=False, **kwargs):
     """Plot the mapping rate of reads by well and tile in a convenient plate layout.
 
     Parameters
@@ -203,6 +210,9 @@ def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=Fa
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap
+
+    plate : {'6W','24W','96W'}
+        Plate type for plot_plate_heatmap
 
     return_summary : boolean, default False
         If true, returns df_summary
@@ -259,13 +269,14 @@ def plot_read_mapping_heatmap(df_reads,barcodes,shape='square',return_summary=Fa
                    .drop(columns='mapped')
                   )
 
-    axes = plot_plate_heatmap(df_summary,shape=shape,**kwargs)
+    axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
 
     if return_summary:
         return df_summary,axes
     return axes
 
-def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape='square', return_summary=False, **kwargs):
+def plot_sbs_ph_matching_heatmap(df_merge, df_info, target='sbs', shape='square', plate='6W',
+    return_summary=False, **kwargs):
     """Plot the rate of matching segmented cells between phenotype and SBS datasets by well and tile 
     in a convenient plate layout.
 
@@ -288,6 +299,9 @@ def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape='square', r
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap. Default infers shape based on value of target.
+
+    plate : {'6W','24W','96W'}
+        Plate type for plot_plate_heatmap
 
     return_summary : boolean, default False
         If true, returns df_summary
@@ -334,13 +348,13 @@ def plot_sbs_ph_matching_heatmap(df_merge,df_info,target='sbs',shape='square', r
                    .drop(columns='matched')
                    .rename(columns={merge_cols[0]:'tile'})
                   )
-    axes = plot_plate_heatmap(df_summary,shape=shape,**kwargs)
+    axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
 
     if return_summary:
         return df_summary,axes
     return axes
 
-def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs): 
+def plot_plate_heatmap(df, metric=None, shape='square', plate='6W', snake_sites=True, **kwargs): 
     """Plot the rate of matching segmented cells between phenotype and SBS datasets by well and tile 
     in a convenient plate layout.
 
@@ -361,6 +375,9 @@ def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs):
                 into a centered shape within a rectangle. Unused corners of this rectangle are plotted as NaN. The summation
                 of this list should equal the total number of sites.
 
+    plate : {'6W','24W','96W'}
+        Plate type for plot_plate_heatmap
+
     snake_sites : boolean, default True
         If true, plots tiles in a snake order similar to the order of sites acquired by many high throughput 
         microscope systems.
@@ -374,6 +391,7 @@ def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs):
     -------
     axes : np.array of matplotlib Axes objects
     """
+    import string
     
     tiles = max(len(df['tile'].unique()),df['tile'].max())
     
@@ -417,17 +435,25 @@ def plot_plate_heatmap(df,metric=None,shape='square',snake_sites=True,**kwargs):
         metric = metric[0]
     
     # define subplots layout
-    wells = len(df['well'].unique())
-    if wells <= 6:
-        wells = ['A1','A2','A3','B1','B2','B3']
+    if df['well'].nunique()==1:
+        wells = df['well'].unique()
+        fig,axes = plt.subplots(1,1,figsize=(10,10))
+        axes = np.array([axes])
+    elif plate=='6W':
+        wells = [f'{r}{c}' for r in string.ascii_uppercase[:2] for c in range(1,4)]
         fig,axes = plt.subplots(2,3,figsize=(15,10))
-    else:
-        wells = ['A1','A2','A3','A4','A5','A6',
-                 'B1','B2','B3','B4','B5','B6',
-                 'C1','C2','C3','C4','C5','C6',
-                 'D1','D2','D3','D4','D5','D6',
-                ]
+    elif plate=='24W'
+        wells = [f'{r}{c}' for r in string.ascii_uppercase[:4] for c in range(1,7)]
         fig,axes = plt.subplots(4,6,figsize=(15,10))
+    elif plate=='96W'
+        wells = [f'{r}{c}' for r in string.ascii_uppercase[:8] for c in range(1,13)]
+        fig,axes = plt.subplots(8,12,figsize=(15,10))
+    else:
+        wells = sorted(df['well'].unique())
+        nr = nc = int(np.ceil(np.sqrt(len(wells))))
+        if (nr - 1) * nc >= len(wells):
+            nr -= 1
+        fig,axes = plt.subplots(nr,nc,figsize=(15,15))
     
     # define colorbar min and max    
     cmin,cmax = (df[metric].min(),df[metric].max())
