@@ -442,10 +442,10 @@ def plot_plate_heatmap(df, metric=None, shape='square', plate='6W', snake_sites=
     elif plate=='6W':
         wells = [f'{r}{c}' for r in string.ascii_uppercase[:2] for c in range(1,4)]
         fig,axes = plt.subplots(2,3,figsize=(15,10))
-    elif plate=='24W'
+    elif plate=='24W':
         wells = [f'{r}{c}' for r in string.ascii_uppercase[:4] for c in range(1,7)]
         fig,axes = plt.subplots(4,6,figsize=(15,10))
-    elif plate=='96W'
+    elif plate=='96W':
         wells = [f'{r}{c}' for r in string.ascii_uppercase[:8] for c in range(1,13)]
         fig,axes = plt.subplots(8,12,figsize=(15,10))
     else:
