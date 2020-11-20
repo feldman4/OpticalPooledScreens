@@ -13,8 +13,8 @@ def plot_mapping_vs_threshold(df_reads, barcodes, threshold_var='peak',ax=None, 
         Table of extracted reads from Snake.call_reads(). Can be concatenated results from
         multiple tiles, wells, etc.
 
-    barcodes : list of strings
-        Expected barcodes to map the reads to.
+    barcodes : list or set of strings
+        Expected barcodes from the pool library design.
 
     threshold_var : string, default 'peak'
         Variable to apply varying thresholds to for comparing mapping rates. Standard variables are
@@ -121,7 +121,7 @@ def plot_count_heatmap(df,tile='tile',shape='square',plate='6W',return_summary=F
         return df_summary,axes
     return axes
 
-def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='square', plate='6W',
+def plot_cell_mapping_heatmap(df_cells, df_sbs_info, barcodes, mapping_to='one', shape='square', plate='6W',
     return_summary=False,**kwargs):
     """Plot the mapping rate of cells by well and tile in a convenient plate layout.
 
@@ -136,6 +136,9 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='sq
         DataFrame of all cells segmented from sbs images, e.g., concatenated outputs for all tiles and wells of 
         Snake.extract_phenotype_minimal(data_phenotype=nulcei,nuclei=nuclei) often used as sbs_cell_info rule in 
         Snakemake.
+
+    barcodes : list or set of strings
+        Expected barcodes from the pool library design.
 
     mapping_to : {'one', 'any'}
         Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'any' includes cells
@@ -163,8 +166,10 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='sq
 
     axes : np.array of matplotlib Axes objects
     """
+    df_cells.loc[:,['mapped_0','mapped_1']] = df_cells[['cell_barcode_0','cell_barcode_1']].isin(barcodes)
+
     df = (df_sbs_info[['well','tile','cell']]
-           .merge(df_cells[['well','tile','cell','sgRNA_0','sgRNA_1']],
+           .merge(df_cells[['well','tile','cell','mapped_0','mapped_1']],
                   how='left',
                   on=['well','tile','cell']
                  )
@@ -172,12 +177,12 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='sq
 
     if mapping_to == 'one':
         metric = 'fraction of cells mapping to 1 barcode'
-        df = df.assign(mapped = lambda x: x[['sgRNA_0','sgRNA_1']].notna().sum(axis=1)==1)
+        df = df.assign(mapped = lambda x: x[['mapped_0','mapped_1']].sum(axis=1)==1)
     elif mapping_to == 'any':
         metric = 'fraction of cells mapping to >=1 barcode'
-        df = df.assign(mapped = lambda x: x[['sgRNA_0','sgRNA_1']].notna().sum(axis=1)>0)
+        df = df.assign(mapped = lambda x: x[['mapped_0','mapped_1']].sum(axis=1)>0)
     else:
-        raise ValueError('mapping_to={} not implemented'.format(mapping_to))
+        raise ValueError(f'mapping_to={mapping_to} not implemented')
 
     df_summary = (df
                   .groupby(['well','tile'])
@@ -186,7 +191,7 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, mapping_to='one', shape='sq
                   .rename(metric)
                   .to_frame()
                   .reset_index()
-                  .query('mapped==True')
+                  .query('mapped')
                   .drop(columns='mapped')
                  )
 
@@ -205,8 +210,8 @@ def plot_read_mapping_heatmap(df_reads, barcodes, shape='square', plate='6W', re
         DataFrame of all reads output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells 
         of Snake.call_reads().
 
-    barcodes : list, pandas Series, or pandas DataFrame
-        Barcode sequences in the designed perturbation pool. If DataFrame, required column name is 'sgRNA'.
+    barcodes : list or set of strings
+        Expected barcodes from the pool library design.
 
     shape : str, default 'square'
         Shape of subplot for each well used in plot_plate_heatmap
@@ -231,41 +236,16 @@ def plot_read_mapping_heatmap(df_reads, barcodes, shape='square', plate='6W', re
     axes : np.array of matplotlib Axes objects
     """
 
-    if isinstance(barcodes,pd.Series):
-        df_pool = barcodes.rename('sgRNA').to_frame()
-    elif isinstance(barcodes,pd.DataFrame):
-        df_pool = barcodes
-    else:
-        try:
-            df_pool = pd.DataFrame(data=barcodes,columns=['sgRNA'])
-        except:
-            raise ValueError('''`barcodes` must be a pd.Series, pd.DataFrame with column `sgRNA1`, 
-                or a valid type for the `data` argument for creating a pandas DataFrame.''')
+    df_reads.loc[:,'mapped'] = df_reads['barcode'].isin(barcodes)
 
-    df_reads = df_reads[['well','tile','barcode']].assign(prefix_length=lambda x: x['barcode'].str.len())
-
-    # in some cases different wells will have different numbers of completed sbs cycles
-    df = pd.concat([df_prefix.merge((df_pool
-                                     [['sgRNA']]
-                                     .assign(barcode=lambda x: x['sgRNA'].str[:prefix_length])
-                                    ),
-                                    how='left',
-                                    on='barcode'
-                                   )
-                    for prefix_length,df_prefix
-                    in df_reads.groupby('prefix_length')
-                   ]
-                  )
-
-    df_summary  = (df
-                   .assign(mapped=lambda x: x['sgRNA'].notna())
+    df_summary  = (df_reads
                    .groupby(['well','tile'])
                    ['mapped']
                    .value_counts(normalize=True)
                    .rename('fraction of reads mapping')
                    .to_frame()
                    .reset_index()
-                   .query('mapped==True')
+                   .query('mapped')
                    .drop(columns='mapped')
                   )
 
@@ -469,7 +449,7 @@ def plot_plate_heatmap(df, metric=None, shape='square', plate='6W', snake_sites=
                 except:
                     values[grid==tile] = np.nan
             plot = ax.imshow(values,vmin=cmin,vmax=cmax,**kwargs)
-        ax.set_title('Well {}'.format(well),fontsize=18)
+        ax.set_title('Well {}'.format(well),fontsize=24)
         ax.axis('off')
     
     fig.subplots_adjust(right=0.9)
