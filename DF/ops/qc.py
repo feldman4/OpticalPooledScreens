@@ -166,7 +166,7 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, barcodes, mapping_to='one',
 
     axes : np.array of matplotlib Axes objects
     """
-    df_cells.loc[:,['mapped_0','mapped_1']] = df_cells[['cell_barcode_0','cell_barcode_1']].isin(barcodes)
+    df_cells.loc[:,['mapped_0','mapped_1']] = df_cells[['cell_barcode_0','cell_barcode_1']].isin(barcodes).values
 
     df = (df_sbs_info[['well','tile','cell']]
            .merge(df_cells[['well','tile','cell','mapped_0','mapped_1']],
