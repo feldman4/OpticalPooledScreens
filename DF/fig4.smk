@@ -1,5 +1,3 @@
-configfile: "config.yaml"
-
 from functools import partial
 import ops.annotate
 import ops.firesnake
