@@ -672,3 +672,17 @@ def load_well_tile_list(filename):
     elif filename.endswith('csv'):
         wells, tiles = pd.read_csv(filename)[['well', 'tile']].values.T
     return wells, tiles
+
+
+def processed_file(suffix, directory='process', magnification='10X'):
+    """Format output file pattern, for example:
+    output_file('aligned.tif') => 'process/10X_{well}_Tile-{tile}.aligned.tif'
+    """
+    return f'{directory}/{magnification}_{{well}}_Tile-{{tile}}.{suffix}'
+
+
+def input_files(suffix, cycles, directory='input', magnification='10X'):
+    from snakemake.io import expand
+    pattern = (f'{directory}/{magnification}_{{cycle}}/'
+               f'{magnification}_{{cycle}}_{{{{well}}}}_Tile-{{{{tile}}}}.{suffix}')
+    return expand(pattern, cycle=cycles)
