@@ -20,7 +20,8 @@ except OSError as e:
     warnings.warn('visitor font not found at {0}'.format(VISITOR_PATH))
 
 
-def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=False):
+def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=False, 
+                    return_key=False):
     """Transfer `value` from dataframe `df` to a saved integer image mask, using 
     `label` as an index. 
 
@@ -32,15 +33,21 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
         raise ValueError('duplicate rows present')
 
     label_to_value = df.set_index(label, drop=False)[value]
+    label_key = {}
     index_dtype = label_to_value.index.dtype
     value_dtype = label_to_value.dtype
     if not np.issubdtype(index_dtype, np.integer):
-        raise ValueError('label column {0} is not integer type'.format(label))
+        raise ValueError(f'label column {label} is not integer type')
 
-    if not np.issubdtype(value_dtype, np.number):
-        label_to_value = label_to_value.astype('category').cat.codes
-        warnings.warn('converting value column "{0}" to categorical'.format(value))
+    if not np.issubdtype(value_dtype, np.number) or isinstance(value_dtype, pd.CategoricalDtype):
+        label_to_value = label_to_value.astype('category')
+        value_dtype = pd.CategoricalDtype
+        warnings.warn(f'converting value column {value} to categorical')
 
+    if value_dtype == pd.CategoricalDtype:
+        label_key = {i + 1: v for i,v in enumerate(label_to_value.cat.categories)}
+        label_to_value = label_to_value.cat.codes
+        
     if label_to_value.index.duplicated().any():
         raise ValueError('duplicate index')
 
@@ -58,7 +65,10 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
     
     phenotype = relabel_array(labels, label_to_value)
     
-    return phenotype
+    if return_key:
+        return phenotype, label_key
+    else:
+        return phenotype
 
 
 def annotate_points(df, value, ij=('i', 'j'), width=3, shape=(1024, 1024), selem=None):
