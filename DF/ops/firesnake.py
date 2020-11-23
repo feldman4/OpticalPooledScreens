@@ -282,7 +282,6 @@ class Snake():
         annotated[:, channels] = base_labels
         return annotated
 
-
     @staticmethod
     def _annotate_SBS_extra(log, peaks, df_reads, barcodes, shape=(1024, 1024)):
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
@@ -345,6 +344,32 @@ class Snake():
             df[k] = v
         
         return df
+
+    @staticmethod
+    def _extract_named_features(data, labels, feature_names, wildcards):
+        """Extracts features in dictionary and combines with generic region
+        features.
+        """
+        features = ops.features.make_feature_dict(feature_names)
+        return Snake._extract_features(data, labels, wildcards, features)
+
+    @staticmethod
+    def _extract_named_cell_nucleus_features(data, cells, nuclei, cell_features, nucleus_features,
+                                             wildcards, join='inner'):
+        """Extract named features for cell and nucleus labels and join the results.
+        """
+        assert 'label' in cell_features and 'label' in nucleus_features
+        df_phenotype = pd.concat([
+            Snake._extract_named_features(data, cells, cell_features, {})
+                .set_index('label').rename(columns=lambda x: x + '_cell'),
+            Snake._extract_named_features(data, nuclei, nucleus_features, {})
+                .set_index('label').rename(columns=lambda x: x + '_nucleus'),
+        ], join=join, axis=1).reset_index().rename(columns={'label': 'cell'})
+        
+        for k,v in sorted(wildcards.items()):
+            df_phenotype[k] = v
+
+        return df_phenotype
 
     @staticmethod
     def _extract_phenotype_FR(data_phenotype, nuclei, wildcards):
@@ -473,6 +498,27 @@ class Snake():
         nuclei_tracked = ops.timelapse.relabel_nuclei(nuclei, relabel)
 
         return nuclei_tracked
+
+    @staticmethod
+    def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles, 
+                             join='outer'):
+        if isinstance(sbs_tables, pd.DataFrame):
+            sbs_tables = [sbs_tables]
+        if isinstance(phenotype_tables, pd.DataFrame):
+            phenotype_tables = [phenotype_tables]
+        
+        cols = ['well', 'tile', 'cell']
+        df_sbs = pd.concat(sbs_tables).set_index(cols)
+        df_phenotype = pd.concat(phenotype_tables).set_index(cols)
+        df_combined = pd.concat([df_sbs, df_phenotype], join=join, axis=1).reset_index()
+        
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        df_barcodes = barcode_table.assign(prefix=lambda x: x['barcode'].apply(barcode_to_prefix))
+        if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
+            df_barcodes = df_barcodes.drop('barcode', axis=1)
+        
+        return df_combined.join(df_barcodes.set_index('prefix'), on='cell_barcode_0')
+
 
     @staticmethod
     def add_method(class_, name, f):

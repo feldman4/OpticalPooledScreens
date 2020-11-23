@@ -1,33 +1,35 @@
-REQUESTED_FILES: [
+PROCESS_DIRECTORY: 'process_fig4'
+REQUESTED_FILES: ['combined.csv']
+REQUESTED_TAGS: [
+  'phenotype_aligned.tif',
   'cells.csv',
   'annotate_SBS.tif',
+  'phenotype.csv',
   # 'annotate_SBS_extra.tif',
 ]
 
 ### INPUT TO ANALYSIS
 INPUT_DIRECTORY: 'input'
-PROCESS_DIRECTORY: 'process_test'
 WELL_TILE_LIST: 'well_tile_list_fig4.csv'
-BARCODE_LIST: 'barcodes.txt'
+BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
-SBS_CYCLES: [
-  'c1-SBS-1',
-  'c2-SBS-2',
-  'c3-SBS-3',
-  'c4-SBS-4',
-  'c5-SBS-5',
-  # 'c6-SBS-6',
-  'c7-SBS-7',
-  'c8-SBS-8',
-  'c9-SBS-9',
-  'c10-SBS-10',
-]
+SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis
+SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
+PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 
 ### ANALYSIS PARAMETERS
-THRESHOLD_READS: 75  # threshold for detecting reads
-THRESHOLD_DAPI: 1200  # threshold for segmenting nuclei
-THRESHOLD_CELL: 600  # threshold for segmenting cells
 NUCLEUS_AREA: [37, 200] # min and max nucleus area in pixels
+THRESHOLD_DAPI: 600  # threshold for segmenting nuclei
+THRESHOLD_CELL: 600  # threshold for segmenting cells
+THRESHOLD_READS: 75  # threshold for detecting reads
+NUCLEUS_PHENOTYPE_FEATURES: [
+    'label', # required to join SBS and phenotype data
+    'i', 'j', 'area', 
+    'dapi_gfp_corr', 
+    'dapi_max', 'dapi_mean', 'dapi_median',
+    'gfp_max', 'gfp_mean', 'gfp_median',
+  ]
+CELL_PHENOTYPE_FEATURES: ['label', 'area']
 
 ### DISPLAY OPTIONS
 DISPLAY_RANGES:
