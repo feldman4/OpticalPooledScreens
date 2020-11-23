@@ -37,9 +37,11 @@ GLASBEY = read_lut(ops.constants.GLASBEY_INVERTED)
 
 
 def grid_view(files, bounds, padding=40, with_mask=False):
-    """Mask is 1-indexed, zero indicates background.
+    """Bounds are given as [(i0, j0, i1, j1)]. 
+    Mask is 1-indexed, zero indicates background.
     """
     padding = int(padding)
+    bounds = np.round(bounds).astype(int)
 
     arr = []
     Is = {}
