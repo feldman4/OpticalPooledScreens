@@ -116,6 +116,13 @@ def name_file(description, **more_description):
     return normpath(filename)
 
 
+def rename_file(filename, **new_description):
+    """Convenience function for modifying an existing filename.
+    """
+    return name_file(parse_filename(filename), **new_description)
+
+
+
 def normpath(filename):
     if not urlparse(filename).scheme: # leave remote urls alone
         filename = os.path.normpath(filename)

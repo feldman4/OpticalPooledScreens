@@ -19,6 +19,7 @@ from .annotate import GRMC
 from .io import BLUE, GREEN, RED, MAGENTA, GRAY, CYAN, GLASBEY 
 from .io import grid_view
 from .filenames import name_file as name
+from .filenames import rename_file as rename
 from .filenames import parse_filename as parse
 from .filenames import timestamp, file_frame
 from .io import read_stack as read
