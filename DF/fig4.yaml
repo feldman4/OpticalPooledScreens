@@ -1,13 +1,16 @@
+REQUESTED_FILES: [
+  'cells.csv',
+  'annotate_SBS.tif',
+  # 'annotate_SBS_extra.tif',
+]
+
+### INPUT TO ANALYSIS
 INPUT_DIRECTORY: 'input'
 PROCESS_DIRECTORY: 'process_test'
 WELL_TILE_LIST: 'well_tile_list_fig4.csv'
 BARCODE_LIST: 'barcodes.txt'
 MAGNIFICATION: '10X'
-THRESHOLD_READS: 75  # threshold for detecting reads
-THRESHOLD_DAPI: 1200  # threshold for segmenting nuclei
-THRESHOLD_CELL: 600  # threshold for segmenting cells
-NUCLEUS_AREA: [37, 200] # min and max nucleus area in pixels
-CYCLES: [
+SBS_CYCLES: [
   'c1-SBS-1',
   'c2-SBS-2',
   'c3-SBS-3',
@@ -19,6 +22,14 @@ CYCLES: [
   'c9-SBS-9',
   'c10-SBS-10',
 ]
+
+### ANALYSIS PARAMETERS
+THRESHOLD_READS: 75  # threshold for detecting reads
+THRESHOLD_DAPI: 1200  # threshold for segmenting nuclei
+THRESHOLD_CELL: 600  # threshold for segmenting cells
+NUCLEUS_AREA: [37, 200] # min and max nucleus area in pixels
+
+### DISPLAY OPTIONS
 DISPLAY_RANGES:
   DAPI: [500, 15000]
   SBS_G: [100, 10000]

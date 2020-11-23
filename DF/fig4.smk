@@ -27,18 +27,16 @@ processed_file = partial(ops.firesnake.processed_file,
                          directory=config['PROCESS_DIRECTORY'])
 
 
-
 rule all:
     input:
         # request individual files or list of files
-        expand(processed_file('cells.csv'), zip, well=WELLS, tile=TILES),
-        expand(processed_file('annotate_SBS.tif'), zip, well=WELLS, tile=TILES),
-        expand(processed_file('annotate_SBS_extra.tif'), zip, well=WELLS, tile=TILES),
-        
+        [expand(processed_file(x), zip, well=WELLS, tile=TILES)
+         for x in config['REQUESTED_FILES']]
+
 rule align:
     priority: -1
     input:
-        input_files('sbs.tif', config['CYCLES'])
+        input_files('sbs.tif', config['SBS_CYCLES'])
     output:
         processed_file('aligned.tif')
     run:
@@ -84,7 +82,7 @@ rule max_filter:
 
 rule segment_nuclei:
     input:
-        input_files('sbs.tif', [config['CYCLES'][0]]),
+        input_files('sbs.tif', [config['SBS_CYCLES'][0]]),
         # not used, just here to change the order of rule execution
         processed_file('log.tif'),
     output:
@@ -97,7 +95,7 @@ rule segment_nuclei:
 
 rule segment_cells:
     input:
-        input_files('sbs.tif', config['CYCLES'][0]),
+        input_files('sbs.tif', config['SBS_CYCLES'][0]),
         processed_file('nuclei.tif'),
     output:
         processed_file('cells.tif')
