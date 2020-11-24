@@ -165,7 +165,8 @@ rule merge_cell_tables:
         (config['PROCESS_DIRECTORY'] + '/combined.csv')
     run:
         Snake.merge_sbs_phenotype(output=output, sbs_tables=input.cells, 
-        phenotype_tables=input.phenotype, barcode_table=input.barcodes, sbs_cycles=config['SBS_CYCLES'])
+        phenotype_tables=input.phenotype, barcode_table=input.barcodes, 
+        sbs_cycles=config['SBS_CYCLES'])
 
 rule annotate_SBS:
     input:

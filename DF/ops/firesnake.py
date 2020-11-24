@@ -517,8 +517,11 @@ class Snake():
         if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
             df_barcodes = df_barcodes.drop('barcode', axis=1)
         
-        return df_combined.join(df_barcodes.set_index('prefix'), on='cell_barcode_0')
-
+        barcode_info = df_barcodes.set_index('prefix')
+        return (df_combined
+                .join(barcode_info, on='cell_barcode_0')
+                .join(barcode_info.rename(columns=lambda x: x + '_1'), on='cell_barcode_1')
+                )
 
     @staticmethod
     def add_method(class_, name, f):
