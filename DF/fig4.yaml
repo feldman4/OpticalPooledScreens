@@ -18,8 +18,8 @@ SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
 PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 
 ### ANALYSIS PARAMETERS
-NUCLEUS_AREA: [37, 200] # min and max nucleus area in pixels
-THRESHOLD_DAPI: 600  # threshold for segmenting nuclei
+NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
+THRESHOLD_DAPI: 200  # threshold for segmenting nuclei
 THRESHOLD_CELL: 600  # threshold for segmenting cells
 THRESHOLD_READS: 75  # threshold for detecting reads
 NUCLEUS_PHENOTYPE_FEATURES: [
