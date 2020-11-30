@@ -67,7 +67,7 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
     Expands labeled nuclei to cells, constrained to where mask is >0.
     """
     distance = ndi.distance_transform_cdt(nuclei == 0)
-    cells = skimage.morphology.watershed(distance, nuclei, mask=mask)
+    cells = skimage.segmentation.watershed(distance, nuclei, mask=mask)
     # remove cells touching the boundary
     if remove_boundary_cells:
         cut = np.concatenate([cells[0,:], cells[-1,:], 
@@ -290,7 +290,7 @@ def apply_watershed(img, smooth=4):
                     exclude_border=False)
 
     markers = ndi.label(local_max)[0]
-    result = skimage.morphology.watershed(-distance, markers, mask=img)
+    result = skimage.segmentation.watershed(-distance, markers, mask=img)
     return result.astype(np.uint16)
 
 
