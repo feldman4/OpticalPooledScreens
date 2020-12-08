@@ -283,7 +283,11 @@ class Snake():
         return annotated
 
     @staticmethod
-    def _annotate_SBS_extra(log, peaks, df_reads, barcodes, shape=(1024, 1024)):
+    def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles,
+                            shape=(1024, 1024)):
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        barcodes = [barcode_to_prefix(x) for x in barcode_table['barcode']]
+
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
         # convert reads to a stack of integer-encoded bases
         plus = [[0, 1, 0],
@@ -513,14 +517,16 @@ class Snake():
         df_combined = pd.concat([df_sbs, df_phenotype], join=join, axis=1).reset_index()
         
         barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
-        df_barcodes = barcode_table.assign(prefix=lambda x: x['barcode'].apply(barcode_to_prefix))
+        df_barcodes = (barcode_table.assign(prefix=lambda x: 
+                            x['barcode'].apply(barcode_to_prefix)))
         if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
             df_barcodes = df_barcodes.drop('barcode', axis=1)
         
         barcode_info = df_barcodes.set_index('prefix')
         return (df_combined
                 .join(barcode_info, on='cell_barcode_0')
-                .join(barcode_info.rename(columns=lambda x: x + '_1'), on='cell_barcode_1')
+                .join(barcode_info.rename(columns=lambda x: x + '_1'), 
+                      on='cell_barcode_1')
                 )
 
     @staticmethod
@@ -723,11 +729,15 @@ def load_well_tile_list(filename):
     return wells, tiles
 
 
-def processed_file(suffix, directory='process', magnification='10X'):
+def processed_file(suffix, directory='process', magnification='10X', temp_tags=tuple()):
     """Format output file pattern, for example:
-    output_file('aligned.tif') => 'process/10X_{well}_Tile-{tile}.aligned.tif'
+    processed_file('aligned.tif') => 'process/10X_{well}_Tile-{tile}.aligned.tif'
     """
-    return f'{directory}/{magnification}_{{well}}_Tile-{{tile}}.{suffix}'
+    file_pattern = f'{directory}/{magnification}_{{well}}_Tile-{{tile}}.{suffix}'
+    if suffix in temp_tags:
+        from snakemake.io import temp
+        file_pattern = temp(file_pattern)
+    return file_pattern
 
 
 def input_files(suffix, cycles, directory='input', magnification='10X'):

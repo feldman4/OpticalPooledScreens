@@ -20,14 +20,21 @@ input_files = partial(ops.firesnake.input_files,
                       magnification=config['MAGNIFICATION'],
                       directory=config['INPUT_DIRECTORY'])
 
-processed_file = partial(ops.firesnake.processed_file, 
+processed_input = partial(ops.firesnake.processed_file, 
                          magnification=config['MAGNIFICATION'],
-                         directory=config['PROCESS_DIRECTORY'])
+                         directory=config['PROCESS_DIRECTORY'],
+                         )
+
+processed_output = partial(ops.firesnake.processed_file, 
+                         magnification=config['MAGNIFICATION'],
+                         directory=config['PROCESS_DIRECTORY'],
+                         temp_tags=config['TEMP_TAGS'],
+                         )
 
 rule all:
     input:
         # request individual files or list of files
-        [expand(processed_file(x), zip, well=WELLS, tile=TILES) 
+        [expand(processed_input(x), zip, well=WELLS, tile=TILES) 
             for x in config['REQUESTED_TAGS']],
         [config['PROCESS_DIRECTORY'] + '/' + x for x in config['REQUESTED_FILES']],
 
@@ -36,7 +43,7 @@ rule align_SBS:
     input:
         input_files('sbs.tif', SBS_CYCLES)
     output:
-        processed_file('aligned.tif')
+        processed_output('aligned.tif')
     run:
         Snake.align_SBS(output=output, data=input, 
             display_ranges=DISPLAY_RANGES, luts=LUTS)
@@ -46,7 +53,7 @@ rule align_phenotype:
         input_files('sbs.tif', SBS_CYCLES[0]),
         input_files('phenotype.tif', config['PHENOTYPE_CYCLE']),
     output:
-        processed_file('phenotype_aligned.tif')
+        processed_output('phenotype_aligned.tif')
     run:
         Snake.align_by_DAPI(output=output, data_1=input[0], data_2=input[1],
             display_ranges=DISPLAY_RANGES, luts=LUTS)
@@ -55,26 +62,26 @@ rule align_phenotype:
 rule transform_LoG:
     priority: -1
     input:
-        processed_file('aligned.tif')
+        processed_input('aligned.tif')
     output:
-        processed_file('log.tif')
+        processed_output('log.tif')
     run:
         Snake.transform_log(output=output, data=input, skip_index=0,
             display_ranges=DISPLAY_RANGES, luts=LUTS)
 
 rule compute_std:
     input:
-        processed_file('log.tif')
+        processed_input('log.tif')
     output:
-        processed_file('std.tif')
+        processed_output('std.tif')
     run:
         Snake.compute_std(output=output, data=input[0], remove_index=0)
 
 rule find_peaks:
     input:
-        processed_file('std.tif')
+        processed_input('std.tif')
     output:
-        processed_file('peaks.tif')
+        processed_output('peaks.tif')
     run:
         Snake.find_peaks(output=output, data=input[0]) 
 
@@ -82,9 +89,9 @@ rule max_filter:
     """Dilates sequencing channels to compensate for single-pixel alignment error.
     """
     input:
-        processed_file('log.tif')
+        processed_input('log.tif')
     output:
-        processed_file('maxed.tif')
+        processed_output('maxed.tif')
     run:
         Snake.max_filter(output=output, data=input[0], width=3,
             remove_index=0, display_ranges=DISPLAY_RANGES[1:], luts=LUTS[1:]) 
@@ -93,9 +100,9 @@ rule segment_nuclei:
     input:
         input_files('sbs.tif', SBS_CYCLES[0]),
         # not used, just here to change the order of rule execution
-        processed_file('log.tif'),
+        processed_input('log.tif'),
     output:
-        processed_file('nuclei.tif')
+        processed_output('nuclei.tif')
     run:
         Snake.segment_nuclei(output=output, data=input[0], 
             threshold=config['THRESHOLD_DAPI'], 
@@ -105,20 +112,20 @@ rule segment_nuclei:
 rule segment_cells:
     input:
         input_files('sbs.tif', SBS_CYCLES[0]),
-        processed_file('nuclei.tif'),
+        processed_input('nuclei.tif'),
     output:
-        processed_file('cells.tif')
+        processed_output('cells.tif')
     run:
         Snake.segment_cells(output=output, 
             data=input[0], nuclei=input[1], threshold=config['THRESHOLD_CELL'])
 
 rule extract_bases:
     input:
-        processed_file('peaks.tif'),
-        processed_file('maxed.tif'),
-        processed_file('cells.tif'),
+        processed_input('peaks.tif'),
+        processed_input('maxed.tif'),
+        processed_input('cells.tif'),
     output:
-        processed_file('bases.csv')
+        processed_output('bases.csv')
     run:
         Snake.extract_bases(output=output, peaks=input[0], maxed=input[1], 
             cells=input[2], threshold_peaks=config['THRESHOLD_READS'], wildcards=wildcards)
@@ -126,28 +133,28 @@ rule extract_bases:
 rule call_reads:
     input:
     #TODO: ADD PEAK INTENSITY TO READS TABLE
-        processed_file('bases.csv'),
-        processed_file('peaks.tif'),
+        processed_input('bases.csv'),
+        processed_input('peaks.tif'),
     output:
-        processed_file('reads.csv')
+        processed_output('reads.csv')
     run:
         Snake.call_reads(output=output, df_bases=input[0], peaks=input[1])
 
 rule call_cells:
     input:
-        processed_file('reads.csv')
+        processed_input('reads.csv')
     output:
-        processed_file('cells.csv')
+        processed_output('cells.csv')
     run:
         Snake.call_cells(output=output, df_reads=input[0])
 
 rule extract_phenotypes:
     input:
         input_files('phenotype.tif', config['PHENOTYPE_CYCLE']),
-        processed_file('cells.tif'),
-        processed_file('nuclei.tif'),
+        processed_input('cells.tif'),
+        processed_input('nuclei.tif'),
     output:
-        processed_file('phenotype.csv')
+        processed_output('phenotype.csv')
     run:
         Snake.extract_named_cell_nucleus_features(output=output, data=input[0], 
             cells=input[1], nuclei=input[2],
@@ -158,8 +165,8 @@ rule extract_phenotypes:
 
 rule merge_cell_tables:
     input:
-        cells=expand(processed_file('cells.csv'), zip, well=WELLS, tile=TILES),
-        phenotype=expand(processed_file('phenotype.csv'), zip, well=WELLS, tile=TILES),
+        cells=expand(processed_input('cells.csv'), zip, well=WELLS, tile=TILES),
+        phenotype=expand(processed_input('phenotype.csv'), zip, well=WELLS, tile=TILES),
         barcodes=config['BARCODE_TABLE'],
     output:
         (config['PROCESS_DIRECTORY'] + '/combined.csv')
@@ -170,10 +177,10 @@ rule merge_cell_tables:
 
 rule annotate_SBS:
     input:
-        processed_file('log.tif'),
-        processed_file('reads.csv'),
+        processed_input('log.tif'),
+        processed_input('reads.csv'),
     output:
-        processed_file('annotate_SBS.tif'),
+        processed_output('annotate_SBS.tif'),
     run:
         luts = LUTS + [ops.annotate.GRMC, ops.io.GRAY]
         display_ranges = [(a/4, b/4) for a,b in DISPLAY_RANGES] + [[0, 4]]
@@ -182,15 +189,18 @@ rule annotate_SBS:
 
 rule annotate_SBS_extra:
     input:
-        processed_file('log.tif'),
-        processed_file('peaks.tif'),
-        processed_file('reads.csv'),
+        processed_input('log.tif'),
+        processed_input('peaks.tif'),
+        processed_input('reads.csv'),
     output:
-        processed_file('annotate_SBS_extra.tif'),
+        processed_output('annotate_SBS_extra.tif'),
     run:
         luts = LUTS + [ops.annotate.GRMC, ops.io.GRAY, ops.io.GRAY]
         display_ranges = [(a/4, b/4) for a,b in DISPLAY_RANGES]
         display_ranges += [[0, 4], [0, config['THRESHOLD_READS']*4], [0, 30]]
+        barcodes = pd.read_csv(config['BARCODE_TABLE'])
+        
         Snake.annotate_SBS_extra(output=output, log=input[0], peaks=input[1], 
-            df_reads=input[2], barcodes=BARCODES, 
+            df_reads=input[2], barcode_table=config['BARCODE_TABLE'], 
+            sbs_cycles=config['SBS_CYCLES'],
             display_ranges=display_ranges[1:], luts=luts[1:], compress=1)

@@ -12,6 +12,7 @@ from ..in_situ import add_clusters
 from ..plates import add_global_xy
 from ..imports import read, save, rename, GRAY, GREEN
 from ..annotate import annotate_labels, relabel_array
+from ..screen_stats import process_rep
 
 labels = {
     'dapi_gfp_corr_nuclear': 'DAPI:p65 nuclear correlation',
@@ -218,7 +219,12 @@ class PanelC:
     window = 100
     process_example = 'experimentC/process_fig4/10X_A1_Tile-456.aligned.tif'
     display_ranges = {
-        'p65': (400, 3000),
+        'p65': [400, 3000],
+        'DAPI': [100, 3000],
+        'SBS_G': [700, 5000],
+        'SBS_T': [600, 3000],
+        'SBS_A': [600, 4000],
+        'SBS_C': [600, 3000],
     }
     
     def find_example(df_combined, gene='TNFRSF1A'):
@@ -277,7 +283,7 @@ class PanelC:
 
         save(f, crop(annotated), luts=luts)
 
-    def load_reprocessed_data():
+    def load_reprocessed_data(outline_type='label'):
         well = PanelC.well
         tile = PanelC.tile
         window = PanelC.window
@@ -316,7 +322,7 @@ class PanelC:
 
         outline, key = (df_combined
         .pipe(annotate_labels, 'cell', 'gene_symbol', 
-            label_mask=cells, outline='value', return_key=True))
+            label_mask=cells, outline=outline_type, return_key=True))
 
         reverse_key = {v: k for k,v in key.items()}
         new_labels = {reverse_key[x]: i + 1 for i, x in enumerate(gene_symbols)}
@@ -365,16 +371,10 @@ class PanelC:
 
         return fig, outline_rgb
 
-
     def plot_sbs_cycle(data, outline_rgb=None):
         colors = 'white', (0, 1, 0), 'red', 'magenta', 'cyan'
-        display_ranges = np.array([
-            [100, 3000],
-            [700, 5000],
-            [600, 3000],
-            [600, 4000],
-            [600, 3000],
-        ])
+        channels = 'DAPI', 'SBS_G', 'SBS_T', 'SBS_A', 'SBS_C'
+        display_ranges = np.array([PanelC.display_ranges[x] for x in channels])
 
         rgb = colorize(data, colors, display_ranges)
         if outline_rgb is not None:
@@ -388,3 +388,82 @@ class PanelC:
         ax.yaxis.set_visible(False)
         
         return fig
+
+    def outline_rgb_to_gray(outline_rgb, shade=0.5):
+        outline_gray = (outline_rgb > 0).any(axis=-1) * shade
+        outline_gray = np.tile(outline_gray, (3, 1, 1)).transpose([1, 2, 0])
+        return outline_gray
+
+    def plot_base_calls(outline_rgb, ij, figsize=(6, 6)):
+        i,j = ij
+        crop = lambda x: subimage(x, [i, j, i, j], pad=PanelC.window)
+
+        data = read(rename(PanelC.process_example, tag='aligned'))[0] 
+        data = crop(data)
+        colors = 'white', (0, 1, 0), 'red', 'magenta', 'cyan'
+        channels = 'DAPI', 'SBS_G', 'SBS_T', 'SBS_A', 'SBS_C'
+        display_ranges = np.array([PanelC.display_ranges[x] for x in channels])
+        sbs_rgb = colorize(data, colors, display_ranges)
+
+        outline_gray = PanelC.outline_rgb_to_gray(outline_rgb, 1)
+        f = rename(PanelC.process_example, tag='annotate_SBS')
+        base_calls = crop(read(f))[0, -1]
+        print(base_calls.shape)
+        
+        colors = 'black', (0, 1, 0), 'red', 'magenta', 'cyan'
+        grmc = np.array([to_rgba(c)[:3] for c in colors])
+        grmc_rgb = grmc[base_calls]
+
+        # a bit different
+        # f = rename(PanelC.process_example, tag='aligned')
+        # dapi = crop(read(f))[0, 0]
+        # dr = np.array([PanelC.display_ranges['DAPI']])
+        # dapi_rgb = colorize(dapi[None], [[1, 1, 1]], dr)
+
+        rgb = grmc_rgb + sbs_rgb
+        rgb[outline_gray > 0] = 0
+        rgb += outline_gray
+        rgb = rgb.clip(min=0, max=1)
+
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.imshow(rgb)
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+
+        return fig
+
+class PanelD:
+    combined_csv = 'experimentC/process_fig4_all/combined.csv'
+    per_sgRNA_rep_csv = 'experimentC/stats_per_sgRNA_rep.csv'
+    df_conditions = pd.DataFrame([
+            {'well': 'A1', 'stimulant': 'TNFa', 'replicate': 1},
+            {'well': 'A2', 'stimulant': 'TNFa', 'replicate': 2},
+            {'well': 'A3', 'stimulant': 'TNFa', 'replicate': 3},
+    ])
+    min_cells_per_sgRNA = 10
+
+    def calculate_sgRNA_rep_stats():
+        """Takes about 7 minutes for 3 wells. Slow step is t-tests?
+        """
+        import ops.screen_stats
+
+        df_combined = (pd.read_csv(PanelD.combined_csv)
+         .assign(sgRNA_name=lambda x: x['sgRNA'])
+         .merge(PanelD.df_conditions)
+         .groupby(['stimulant', 'replicate'])
+         .progress_apply(process_rep)
+         .reset_index().drop('level_2', axis=1)
+         .to_csv(PanelD.per_sgRNA_rep_csv, index=None)
+        )
+    
+    def calculate_gene_stats():
+        df_stats = pd.read_csv(PanelD.per_sgRNA_rep_csv)
+        df_gene_stats = (df_stats
+        .query('count > @PanelD.min_cells_per_sgRNA')
+        .sort_values('w_dist', ascending=False)
+        .groupby(['stimulant', 'gene_symbol'])
+        ['w_dist'].nth(1)
+        .sort_values(ascending=False)
+        .rename('gene_translocation_defect').reset_index()
+        )
+        return df_gene_stats
