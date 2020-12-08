@@ -8,9 +8,11 @@ from scipy.stats import wasserstein_distance, ks_2samp, ttest_ind
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def process_rep(df, value='dapi_gfp_corr_nuclear', 
+
+def process_rep(df, value='dapi_gfp_corr_nucleus',
                sgRNA_index=('sgRNA_name', 'gene_symbol')):
-    """Calculate statistics for one replicate.
+    """Calculate statistics for one replicate. "w_dist" corresponds to 
+    "sgRNA translocation defect" in 2019 paper.
     
     Example:
 
@@ -22,7 +24,7 @@ def process_rep(df, value='dapi_gfp_corr_nuclear',
     )
     """
     sgRNA_index = list(sgRNA_index)
-    nt = df.query('gene_symbol == "nontargeting"')[value]
+    nt = df.query('gene_symbol == "non-targeting"')[value]
     w_dist = lambda x: wasserstein_distance(x, nt)
     ks_test = lambda x: ks_2samp(x, nt)
     t_test = lambda x: ttest_ind(x, nt)
@@ -37,16 +39,25 @@ def process_rep(df, value='dapi_gfp_corr_nuclear',
      .assign(ttest_stat=lambda x: x['t_test'].apply(lambda y: y.statistic))
     )
 
-def get_simple_stats(df_stats):
-    return (df_stats
+
+def score_genes_simple(df_stats):
+    """Score genes by average translocation defect.
+    """
+    df_gene_stats = (df_stats
      .groupby(['gene_symbol', 'stimulant'])
      .apply(lambda x: x.eval('mean * count').sum() / x['count'].sum())
      .rename('mean')
      .reset_index()
      .pivot_table(index='gene_symbol', columns='stimulant', values='mean')
-     .assign(IL1b_rank=lambda x: x['IL1b'].rank().astype(int))
-     .assign(TNFa_rank=lambda x: x['TNFa'].rank().astype(int))
     )
+    for col in df_gene_stats:
+        df_gene_stats[f'{col}_rank'] = df_gene_stats[col].rank().astype(int)
+    return df_gene_stats
+
+
+def score_genes(df_stats):
+    pass
+
 
 def plot_distributions(df_cells, gene):
     
