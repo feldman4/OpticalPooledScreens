@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from tqdm.auto import tqdm
+tqdm.pandas() # adds GroupBy.progress_apply
 
 # temporary: imports using "ops" name
 # import ops.io
