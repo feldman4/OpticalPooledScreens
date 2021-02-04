@@ -129,8 +129,7 @@ def plot_cell_mapping_heatmap(df_cells, df_sbs_info, barcodes, mapping_to='one',
     ----------
     df_cells : pandas DataFrame
         DataFrame of all cells output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells 
-        of Snake.call_cells(). It is expected that called barcodes are mapped to a library of interest, resulting 
-        in 'sgRNA_0' and 'sgRNA_1' columns.
+        of Snake.call_cells().
 
     df_sbs_info : pandas DataFrame
         DataFrame of all cells segmented from sbs images, e.g., concatenated outputs for all tiles and wells of 
