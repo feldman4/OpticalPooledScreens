@@ -193,12 +193,13 @@ class Snake():
         return nuclei.astype(np.uint16)
 
     @staticmethod
-    def _segment_nuclei_stack(dapi, threshold, area_min, area_max):
+    def _segment_nuclei_stack(dapi, threshold, area_min, area_max, smooth=1.35, radius=15):
         """Find nuclei from a nuclear stain (e.g., DAPI). Expects data to have shape (I, J) 
         (segments one image) or (N, I, J) (segments a series of DAPI images).
         """
         kwargs = dict(threshold=lambda x: threshold, 
-            area_min=area_min, area_max=area_max)
+            area_min=area_min, area_max=area_max,
+            smooth=smooth, radius=radius)
 
         find_nuclei = ops.utils.applyIJ(ops.process.find_nuclei)
         # skimage precision warning
