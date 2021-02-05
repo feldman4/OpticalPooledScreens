@@ -12,8 +12,8 @@ IPython.get_ipython().run_line_magic('autoreload', '2')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import tqdm.notebook
-tqdn = tqdm.notebook.tqdm
+from tqdm.auto import tqdm
+tqdm.pandas() # adds GroupBy.progress_apply
 
 # temporary: imports using "ops" name
 # import ops.io

@@ -1,7 +1,7 @@
 import functools
 import multiprocessing
 
-from string import Formatter
+import string
 from itertools import product
 from glob import glob
 
@@ -214,18 +214,6 @@ def ndarray_to_dataframe(values, index):
     return df
 
 
-def apply_string_format(df, format_string):
-    """Fills in a python string template from column names. Columns
-    are automatically cast to string using `.astype(str)`.
-    """
-    keys = [x[1] for x in Formatter().parse(format_string)]
-    result = []
-    for values in df[keys].astype(str).values:
-        d = dict(zip(keys, values))
-        result.append(format_string.format(**d))
-    return result
-
-
 def uncategorize(df, as_codes=False):
     """Pivot and concat are weird with categories.
     """
@@ -274,7 +262,8 @@ def cast_cols(df, int_cols=tuple(), float_cols=tuple(), str_cols=tuple()):
 
 
 def replace_cols(df, **kwargs):
-    # careful with closure
+    """Apply function to update column with keyword argument name.
+    """
     d = {}
     for k, v in kwargs.items():
         def f(x, k=k, v=v):
@@ -374,6 +363,21 @@ def gb_apply_parallel(df, cols, func, n_jobs=None, tqdn=True):
         results = pd.DataFrame(results, index=pd.Index(names, name=cols)).reset_index()
 
     return results
+
+
+def add_fstrings(df, **format_strings):
+    """Add strings formatted using columns as keys.
+    
+    For example, `df.pipe(add_str_format, well_tile='{well}_{tile}')`
+    """
+    format_strings = list(format_strings.items())
+    results = {}
+    for name, fmt in format_strings:
+        cols = [x[1] for x in string.Formatter().parse(fmt)]
+        rows = df[cols].to_dict('records')
+        results[name] = [fmt.format(**row) for row in rows]
+    return df.assign(**results)
+
 
 
 # NUMPY

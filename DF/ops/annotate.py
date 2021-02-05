@@ -20,7 +20,8 @@ except OSError as e:
     warnings.warn('visitor font not found at {0}'.format(VISITOR_PATH))
 
 
-def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=False):
+def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=False, 
+                    return_key=False):
     """Transfer `value` from dataframe `df` to a saved integer image mask, using 
     `label` as an index. 
 
@@ -32,15 +33,22 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
         raise ValueError('duplicate rows present')
 
     label_to_value = df.set_index(label, drop=False)[value]
+    label_key = {}
     index_dtype = label_to_value.index.dtype
     value_dtype = label_to_value.dtype
     if not np.issubdtype(index_dtype, np.integer):
-        raise ValueError('label column {0} is not integer type'.format(label))
+        raise ValueError(f'label column {label} is not integer type')
 
-    if not np.issubdtype(value_dtype, np.number):
-        label_to_value = label_to_value.astype('category').cat.codes
-        warnings.warn('converting value column "{0}" to categorical'.format(value))
+    if not np.issubdtype(value_dtype, np.number) or isinstance(value_dtype, pd.CategoricalDtype):
+        label_to_value = label_to_value.astype('category')
+        value_dtype = pd.CategoricalDtype
+        warnings.warn(f'converting value column {value} to categorical')
 
+    if value_dtype == pd.CategoricalDtype:
+        label_key = {i + 1: v for i,v in enumerate(label_to_value.cat.categories)}
+        # offset by one since background is zero
+        label_to_value = label_to_value.cat.codes + 1
+        
     if label_to_value.index.duplicated().any():
         raise ValueError('duplicate index')
 
@@ -53,12 +61,21 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
     else:
         labels = label_mask
     
-    if outline:
+    if outline == 'label':
         labels = outline_mask(labels, 'inner')
     
-    phenotype = relabel_array(labels, label_to_value)
+    labeled_by_value = relabel_array(labels, label_to_value)
+
+    if outline == 'value':
+        labeled_by_value = outline_mask(labeled_by_value, 'inner')
     
-    return phenotype
+    if all([x == int(x) for x in label_to_value.values]):
+        labeled_by_value = labeled_by_value.astype(int)
+
+    if return_key:
+        return labeled_by_value, label_key
+    else:
+        return labeled_by_value
 
 
 def annotate_points(df, value, ij=('i', 'j'), width=3, shape=(1024, 1024), selem=None):
@@ -116,7 +133,7 @@ def bitmap_label(labels, positions, colors=None):
     for label, (i, j), color in zip(labels, positions, colors):
         if label == '':
             continue
-        i_px, j_px = np.where(lasagna.io.bitmap_text(label))
+        i_px, j_px = np.where(bitmap_line(label))
         i_all += list(i_px + i)
         j_all += list(j_px + j)
         c_all += [color] * len(i_px)

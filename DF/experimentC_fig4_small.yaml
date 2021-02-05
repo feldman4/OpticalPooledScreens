@@ -1,0 +1,46 @@
+PROCESS_DIRECTORY: 'process_fig4'
+REQUESTED_FILES: ['combined.csv']
+REQUESTED_TAGS: [
+  'phenotype_aligned.tif',
+  'cells.csv',
+  'annotate_SBS.tif',
+  'phenotype.csv',
+  # 'annotate_SBS_extra.tif',
+]
+
+### INPUT TO ANALYSIS
+INPUT_DIRECTORY: 'input'
+WELL_TILE_LIST: 'well_tile_list_fig4_small.csv'
+BARCODE_TABLE: 'barcodes.csv'
+MAGNIFICATION: '10X'
+SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis
+SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
+PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
+
+### ANALYSIS PARAMETERS
+NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
+THRESHOLD_DAPI: 200  # threshold for segmenting nuclei
+THRESHOLD_CELL: 600  # threshold for segmenting cells
+THRESHOLD_READS: 75  # threshold for detecting reads
+NUCLEUS_PHENOTYPE_FEATURES: [
+    'label', # required to join SBS and phenotype data
+    'i', 'j', 'area', 
+    'dapi_gfp_corr', 
+    'dapi_max', 'dapi_mean', 'dapi_median',
+    'gfp_max', 'gfp_mean', 'gfp_median',
+  ]
+CELL_PHENOTYPE_FEATURES: ['label', 'area']
+
+### DISPLAY OPTIONS
+DISPLAY_RANGES:
+  DAPI: [500, 15000]
+  SBS_G: [100, 10000]
+  SBS_T: [100, 20000]
+  SBS_A: [100, 8000]
+  SBS_C: [100, 6000]
+LUTS:
+  DAPI: 'GRAY'
+  SBS_G: 'GREEN'
+  SBS_T: 'RED'
+  SBS_A: 'MAGENTA'
+  SBS_C: 'CYAN'

@@ -545,10 +545,10 @@ class Snake():
     # PHENOTYPE FEATURE EXTRACTION
 
     @staticmethod
-    def _annotate_SBS(log, df_reads, shape=(1024, 1024)):
+    def _annotate_SBS(log, df_reads):
         # convert reads to a stack of integer-encoded bases
-        base_labels = ops.annotate.annotate_bases(df_reads, width=3)
         cycles, channels, height, width = log.shape
+        base_labels = ops.annotate.annotate_bases(df_reads, width=3, shape=(height, width))
         annotated = np.zeros((cycles, channels + 1, height, width), 
                             dtype=np.uint16)
 
@@ -556,9 +556,12 @@ class Snake():
         annotated[:, channels] = base_labels
         return annotated
 
-
     @staticmethod
-    def _annotate_SBS_extra(log, peaks, df_reads, barcodes, shape=(1024, 1024)):
+    def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles,
+                            shape=(1024, 1024)):
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        barcodes = [barcode_to_prefix(x) for x in barcode_table['barcode']]
+
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
         # convert reads to a stack of integer-encoded bases
         plus = [[0, 1, 0],
@@ -645,6 +648,32 @@ class Snake():
             df[k] = v
         
         return df
+
+    @staticmethod
+    def _extract_named_features(data, labels, feature_names, wildcards):
+        """Extracts features in dictionary and combines with generic region
+        features.
+        """
+        features = ops.features.make_feature_dict(feature_names)
+        return Snake._extract_features(data, labels, wildcards, features)
+
+    @staticmethod
+    def _extract_named_cell_nucleus_features(data, cells, nuclei, cell_features, nucleus_features,
+                                             wildcards, join='inner'):
+        """Extract named features for cell and nucleus labels and join the results.
+        """
+        assert 'label' in cell_features and 'label' in nucleus_features
+        df_phenotype = pd.concat([
+            Snake._extract_named_features(data, cells, cell_features, {})
+                .set_index('label').rename(columns=lambda x: x + '_cell'),
+            Snake._extract_named_features(data, nuclei, nucleus_features, {})
+                .set_index('label').rename(columns=lambda x: x + '_nucleus'),
+        ], join=join, axis=1).reset_index().rename(columns={'label': 'cell'})
+        
+        for k,v in sorted(wildcards.items()):
+            df_phenotype[k] = v
+
+        return df_phenotype
 
     @staticmethod
     def _extract_phenotype_FR(data_phenotype, nuclei, wildcards):
@@ -775,6 +804,32 @@ class Snake():
         return nuclei_tracked
 
     # SNAKEMAKE
+
+    @staticmethod
+    def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles, 
+                             join='outer'):
+        if isinstance(sbs_tables, pd.DataFrame):
+            sbs_tables = [sbs_tables]
+        if isinstance(phenotype_tables, pd.DataFrame):
+            phenotype_tables = [phenotype_tables]
+        
+        cols = ['well', 'tile', 'cell']
+        df_sbs = pd.concat(sbs_tables).set_index(cols)
+        df_phenotype = pd.concat(phenotype_tables).set_index(cols)
+        df_combined = pd.concat([df_sbs, df_phenotype], join=join, axis=1).reset_index()
+        
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        df_barcodes = (barcode_table.assign(prefix=lambda x: 
+                            x['barcode'].apply(barcode_to_prefix)))
+        if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
+            df_barcodes = df_barcodes.drop('barcode', axis=1)
+        
+        barcode_info = df_barcodes.set_index('prefix')
+        return (df_combined
+                .join(barcode_info, on='cell_barcode_0')
+                .join(barcode_info.rename(columns=lambda x: x + '_1'), 
+                      on='cell_barcode_1')
+                )
 
     @staticmethod
     def add_method(class_, name, f):
@@ -974,3 +1029,21 @@ def load_well_tile_list(filename):
     elif filename.endswith('csv'):
         wells, tiles = pd.read_csv(filename)[['well', 'tile']].values.T
     return wells, tiles
+
+
+def processed_file(suffix, directory='process', magnification='10X', temp_tags=tuple()):
+    """Format output file pattern, for example:
+    processed_file('aligned.tif') => 'process/10X_{well}_Tile-{tile}.aligned.tif'
+    """
+    file_pattern = f'{directory}/{magnification}_{{well}}_Tile-{{tile}}.{suffix}'
+    if suffix in temp_tags:
+        from snakemake.io import temp
+        file_pattern = temp(file_pattern)
+    return file_pattern
+
+
+def input_files(suffix, cycles, directory='input', magnification='10X'):
+    from snakemake.io import expand
+    pattern = (f'{directory}/{magnification}_{{cycle}}/'
+               f'{magnification}_{{cycle}}_{{{{well}}}}_Tile-{{{{tile}}}}.{suffix}')
+    return expand(pattern, cycle=cycles)
