@@ -181,7 +181,8 @@ def format_input(input_table, channel_order=None, n_jobs=1, **kwargs):
     """Formats filenames and concatenates images from the same field of view
     and cycle of imaging if necessary (e.g., when individual channels are split 
     between tiff file outputs of microscope control software). See example 
-    input_file.xlsx table.
+    input_file.xlsx table. Also saves `input/well_tile_list.csv` to use as input
+    for a snakemake workflow.
 
     Parameters
     ----------
@@ -252,6 +253,8 @@ def format_input(input_table, channel_order=None, n_jobs=1, **kwargs):
     else:
         for output_file,df_input in df.groupby('snakemake filename'):
             process_site(output_file,df_input)
+
+    df[['well','tile']].drop_duplicates().to_csv('input/well_tile_list.csv',index=False)
 
 def infer_luts_display_ranges(data, luts, display_ranges):
     """Deal with user input.
