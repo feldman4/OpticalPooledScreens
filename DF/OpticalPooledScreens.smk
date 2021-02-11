@@ -55,9 +55,9 @@ if config['MODE'] == 'gridsearch_segmentation':
     cell_segmentation_paramspace = Paramspace(df_cell_segmentation,filename_params=['THRESHOLD_CELL'])
 
     config['REQUESTED_FILES'] = []
-    config['REQUESTED_TAGS'] = [f'segmentation_summary.{instance}.'
+    config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
             f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif' 
-            for instance in nuclei_segmentation_paramspace.instance_patterns]
+            for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
 
     config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
         f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
