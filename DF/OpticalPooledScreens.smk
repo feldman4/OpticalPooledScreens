@@ -8,25 +8,13 @@ import pandas as pd
 # "well_tile_list.csv" generated automatically when parsing "input_files.xlsx",
 # edit to restrict which well and tile positions are analyzed
 if config['INCLUDE_WELLS_TILES']=='all':
-    if config['MODE'] in ['gridsearch_segmentation','gridsearch_read-calling']:
-        raise ValueError('MODE="gridsearch_segmentation" or MODE="gridsearch_read-calling" should not '
+    if config['MODE'] in ['paramsearch_segmentation','paramsearch_read-calling']:
+        raise ValueError('MODE="paramsearch_segmentation" or MODE="paramsearch_read-calling" should not '
             'be run with all wells and tiles. Change the INCLUDE_WELLS_TILES parameters to include '
             'only a subset of images.'
             )
 
-    WELLS, TILES = pd.read_csv(config['WELL_TILE_LIST'])[['well', 'tile']].values.T
-
-elif all(isinstance(entry,list) for entry in config['INCLUDE_WELLS_TILES']):
-    df_wells_tiles = pd.read_csv(config['WELL_TILE_LIST'])[['well', 'tile']]
-
-    df_wells_tiles['well_tile'] = df_wells_tiles['well']+df_wells_tiles['tile'].astype(str)
-    include_wells_tiles  = [''.join(map(str,well_tile)) for well_tile in config['INCLUDE_WELLS_TILES']]
-
-    WELLS, TILES = df_wells_tiles.query('well_tile==@include_wells_tiles')[['well', 'tile']].values.T
-    
-else:
-    raise ValueError(f'INCLUDE_WELLS_TILES="{config["INCLUDE_WELLS_TILES"]}" not recognized, use either'
-        ' "all" or a list of [well,tile] pair lists')
+WELLS, TILES = ops.firesnake.load_well_tile_list(config['WELL_TILE_LIST'],include=config['INCLUDE_WELLS_TILES'])
 
 SBS_CYCLES = [config['SBS_CYCLE_FORMAT'].format(cycle=x) for x in config['SBS_CYCLES']]
 
@@ -35,38 +23,20 @@ channels = ('DAPI', 'SBS_G', 'SBS_T', 'SBS_A', 'SBS_C')
 LUTS = [getattr(ops.io, config['LUTS'][x]) for x in channels]
 DISPLAY_RANGES = [config['DISPLAY_RANGES'][x] for x in channels]
 
-# set paramspaces if gridsearch mode selected
-if config['MODE'] == 'gridsearch_segmentation':
-    from snakemake.utils import Paramspace
-    from itertools import product
-    import numpy as np
-    df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI':t_dapi,'NUCLEUS_AREA_0':n_area_0,'NUCLEUS_AREA_1':n_area_1}
-        for t_dapi,n_area_0,n_area_1
-        in product(np.arange(config['THRESHOLD_DAPI']-200,config['THRESHOLD_DAPI']+300,100),
-                np.arange(config['NUCLEUS_AREA'][0]-20,config['NUCLEUS_AREA'][0]+40,60),
-                np.arange(config['NUCLEUS_AREA'][1]-50,config['NUCLEUS_AREA'][1]+100,150)
-            )
-        ])
-
-    df_cell_segmentation = pd.DataFrame([{'THRESHOLD_CELL':t_cell}
-        for t_cell in np.arange(config['THRESHOLD_CELL']-200,config['THRESHOLD_CELL']+300,100)])
-
-    nuclei_segmentation_paramspace = Paramspace(df_nuclei_segmentation,filename_params=['THRESHOLD_DAPI','NUCLEUS_AREA_0','NUCLEUS_AREA_1'])
-    cell_segmentation_paramspace = Paramspace(df_cell_segmentation,filename_params=['THRESHOLD_CELL'])
-
-    config['REQUESTED_FILES'] = []
-    config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
-            f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif' 
-            for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
-
-    config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
-        f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
-    ]
-
-elif config['MODE'] == 'gridsearch_read-calling':
-    raise ValueError(f'MODE="{config["MODE"]}" not yet implemented.')
+# set paramspaces if a paramsearch mode is selected
+if config['MODE'] == 'paramsearch_segmentation':
+    (config,
+        nuclei_segmentation_paramspace,
+        cell_segmentation_paramspace) = ops.firesnake.initialize_paramsearch(config)
+elif config['MODE'] == 'paramsearch_read-calling':
+    config,read_calling_paramspace = ops.firesnake.initialize_paramsearch(config)
 elif config['MODE']!='process':
-    raise ValueError(f'MODE="{config["MODE"]}" not recognized, use either "process" or "gridsearch"')
+    raise ValueError(f'MODE="{config["MODE"]}" not recognized, use either "process" or "paramsearch"')
+else:
+    if any(map(lambda x: isinstance(x,list),[config['THRESHOLD_DAPI'],config['THRESHOLD_CELL'],config['THRESHOLD_READS']])):
+        raise ValueError('Thresholds cannot be lists for MODE="process"')
+    if isinstance(config['NUCLEUS_AREA'][0],list):
+        raise ValueError('NUCLEUS_AREA cannot be a list of lists for MODE="process"')
 
 # naming convention for input and processed files
 input_files = partial(ops.firesnake.input_files,
@@ -94,7 +64,7 @@ rule all:
 rule align_SBS:
     priority: -1
     input:
-        input_files('sbs.tif', SBS_CYCLES)
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES)
     output:
         processed_output('aligned.tif')
     run:
@@ -103,8 +73,8 @@ rule align_SBS:
 
 rule align_phenotype:
     input:
-        input_files('sbs.tif', SBS_CYCLES[0]),
-        input_files('phenotype.tif', config['PHENOTYPE_CYCLE']),
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
+        input_files(config['PHENOTYPE_INPUT_TAG'], config['PHENOTYPE_CYCLE']),
     output:
         processed_output('phenotype_aligned.tif')
     run:
@@ -151,7 +121,7 @@ rule max_filter:
 
 rule segment_nuclei:
     input:
-        input_files('sbs.tif', SBS_CYCLES[0]),
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
         # not used, just here to change the order of rule execution
         processed_input('log.tif'),
     output:
@@ -164,7 +134,7 @@ rule segment_nuclei:
 
 rule segment_cells:
     input:
-        input_files('sbs.tif', SBS_CYCLES[0]),
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
         processed_input('nuclei.tif'),
     output:
         processed_output('cells.tif')
@@ -203,7 +173,7 @@ rule call_cells:
 
 rule extract_phenotypes:
     input:
-        input_files('phenotype.tif', config['PHENOTYPE_CYCLE']),
+        input_files(config['PHENOTYPE_INPUT_TAG'], config['PHENOTYPE_CYCLE']),
         processed_input('cells.tif'),
         processed_input('nuclei.tif'),
     output:
@@ -258,10 +228,10 @@ rule annotate_SBS_extra:
             sbs_cycles=config['SBS_CYCLES'],
             display_ranges=display_ranges[1:], luts=luts[1:], compress=1)
 
-if config['MODE'] == 'gridsearch_segmentation':
-    rule segment_nuclei_gridsearch:
+if config['MODE'] == 'paramsearch_segmentation':
+    rule segment_nuclei_paramsearch:
         input:
-            input_files('sbs.tif', SBS_CYCLES[0]),
+            input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
             # not used, just here to change the order of rule execution
             processed_input('log.tif'),
         output:
@@ -271,12 +241,12 @@ if config['MODE'] == 'gridsearch_segmentation':
         run:
             Snake.segment_nuclei(output=output, data=input[0], 
                 threshold=params.nuclei_segmentation['THRESHOLD_DAPI'][0], 
-                area_min=params.nuclei_segmentation['NUCLEUS_AREA_0'][0], 
-                area_max=params.nuclei_segmentation['NUCLEUS_AREA_1'][0])
+                area_min=params.nuclei_segmentation['NUCLEUS_AREA_MIN'][0], 
+                area_max=params.nuclei_segmentation['NUCLEUS_AREA_MAX'][0])
 
-    rule segment_cells_gridsearch:
+    rule segment_cells_paramsearch:
         input:
-            input_files('sbs.tif', SBS_CYCLES[0]),
+            input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
             processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif')
         output:
             processed_output(f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif')
@@ -286,9 +256,9 @@ if config['MODE'] == 'gridsearch_segmentation':
             Snake.segment_cells(output=output, 
                 data=input[0], nuclei=input[1], threshold=params.cell_segmentation['THRESHOLD_CELL'][0])
 
-    rule segment_gridsearch_summary:
+    rule segment_paramsearch_summary:
         input:
-            input_files('sbs.tif', SBS_CYCLES[0]),
+            input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
             processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif'),
             [processed_input(f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.'
                 f'{cell_segmentation_instance}.tif') 
@@ -298,6 +268,7 @@ if config['MODE'] == 'gridsearch_segmentation':
             processed_output(f'segmentation_summary.{nuclei_segmentation_paramspace.wildcard_pattern}.'
                 f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif')
         run:
+            import numpy as np
             data = ops.io.read_stack(input[0])
             segmentations = [ops.io.read_stack(f) for f in input[1:]]
             summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
@@ -306,3 +277,61 @@ if config['MODE'] == 'gridsearch_segmentation':
                 luts=LUTS[:2]+[ops.io.GLASBEY,]*len(segmentations),
                 display_ranges=DISPLAY_RANGES[:2]+[(0,segmentations[0].max()),]*len(segmentations)
                 )
+
+if config['MODE'] == 'paramsearch_read-calling':
+    rule extract_bases_paramsearch:
+        input:
+            processed_input('peaks.tif'),
+            processed_input('maxed.tif'),
+            processed_input('cells.tif'),
+        output:
+            processed_output(f'bases.{read_calling_paramspace.wildcard_pattern}.csv')
+        params:
+            read_calling = read_calling_paramspace.instance
+        run:
+            Snake.extract_bases(output=output, peaks=input[0], maxed=input[1], 
+                cells=input[2], threshold_peaks=params.read_calling['THRESHOLD_READS'][0], wildcards=wildcards)
+
+    rule call_reads_paramsearch:
+        input:
+            processed_input(f'bases.{read_calling_paramspace.wildcard_pattern}.csv'),
+            processed_input('peaks.tif'),
+        output:
+            processed_output(f'reads.{read_calling_paramspace.wildcard_pattern}.csv')
+        run:
+            Snake.call_reads(output=output, df_bases=input[0], peaks=input[1])
+
+    rule call_reads_paramsearch_summary:
+        input:
+            barcodes=config['BARCODE_TABLE'],
+            reads=expand([processed_input(f'reads.{read_calling_instance}.csv') 
+                for read_calling_instance in read_calling_paramspace.instance_patterns],
+                zip, well=WELLS, tile=TILES)
+        output:
+            (config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.csv')
+        run:
+            barcode_table = pd.read_csv(input.barcodes)
+            barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in config['SBS_CYCLES'])
+            barcodes = (barcode_table.assign(prefix=lambda x: 
+                                x['barcode'].apply(barcode_to_prefix))
+                            ['prefix']
+                            .pipe(set)
+                            )
+
+            df_reads = pd.concat([pd.read_csv(table) for table in input.reads])
+
+            def summarize(df):
+                df['mapped'] = df['barcode'].isin(barcodes)
+                return pd.Series({'mapped_reads':df['mapped'].value_counts()[True],
+                    'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
+                    'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
+                    'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
+                    'average_barcodes_per_cell':df.query('cell!=0')['cell'].value_counts().mean(),
+                    'average_mapped_barcodes_per_cell':df.query('(cell!=0)&(mapped)')['cell'].value_counts().mean()})
+
+            df_summary = df_reads.groupby(['well','tile','THRESHOLD_READS']).apply(summarize)
+
+            df_summary.to_csv(output[0])
+
+
+

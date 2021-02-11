@@ -1,8 +1,8 @@
 PROCESS_DIRECTORY: 'process'
-MODE: 'process' # either 'process', 'gridsearch_segmentation', or 'gridsearch_read-calling'. 'gridsearch' options override 
+MODE: 'process' # either 'process', 'paramsearch_segmentation', or 'paramsearch_read-calling'. 'paramsearch' options override 
                 # the requested files and tags and performs a small grid search of NUCLEUS_AREA, THRESHOLD_DAPI, and 
-                # THRESHOLD_CELL ('gridsearch_segmentation'), or of THRESHOLD_READS ('gridsearch_read-calling'). Segmentation
-                # parameters should be chosen either manually or by this grid search prior to running 'gridsearch_read-calling'.
+                # THRESHOLD_CELL ('paramsearch_segmentation'), or of THRESHOLD_READS ('paramsearch_read-calling'). Segmentation
+                # parameters should be chosen either manually or by this parameter search prior to running 'paramsearch_read-calling'.
 REQUESTED_FILES: ['combined.csv']
 REQUESTED_TAGS: [
   'phenotype_aligned.tif',
@@ -16,19 +16,22 @@ TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif']
 
 ### INPUT TO ANALYSIS
 WELL_TILE_LIST: 'input/well_tile_list.csv'
-INCLUDE_WELLS_TILES: 'all' # either 'all' or list of [well,tile] pair lists
+INCLUDE_WELLS_TILES: 'all' # either 'all' or list of [well,tile] pair lists. If running in either paramsearch modes, sites must be restricted to a subset
 INPUT_DIRECTORY: 'input'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
-SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis
+SBS_INPUT_TAG: 'sbs.tif'
+SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysi
 SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
+
+PHENOTYPE_INPUT_TAG: 'phenotype.tif'
 PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 
 ### ANALYSIS PARAMETERS
-NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
-THRESHOLD_DAPI: 200  # threshold for segmenting nuclei
-THRESHOLD_CELL: 600  # threshold for segmenting cells
-THRESHOLD_READS: 75  # threshold for detecting reads
+NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels, for paramsearch_segmentation mode can be list of [min,max] lists to test
+THRESHOLD_DAPI: 200  # threshold for segmenting nuclei, for paramsearch_segmentation mode can be list of thresholds to test
+THRESHOLD_CELL: 600  # threshold for segmenting cells, for paramsearch_segmentation mode can be list of thresholds to test
+THRESHOLD_READS: 75  # threshold for detecting reads, for paramsearch_read-calling mode can be list of thresholds to test
 NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
     'i', 'j', 'area', 

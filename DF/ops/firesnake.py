@@ -1023,11 +1023,44 @@ def get_kwarg_defaults(f):
     return defaults
 
 
-def load_well_tile_list(filename):
+def load_well_tile_list(filename, include='all'):
+    """Read and format a table of acquired wells and tiles for snakemake.
+
+    Parameters
+    ----------
+    filename : str, path object, or file-like object
+        File path to table of acquired wells and tiles.
+
+    include : str or list of lists, default "all"
+        If "all", keeps all wells and tiles defined in the supplied table. If any 
+        other str, this is used as a query of the well-tile table to restrict
+        which sites are analyzed. If a list of [well,tile] pair lists, restricts
+        analysis to this defined set of fields-of-view.
+
+    Returns
+    -------
+    wells : np.ndarray
+        Array of included wells, should be zipped with `tiles`.
+
+    tiles : np.ndarray
+        Array of included tiles, should be zipped with `wells`.
+    """
     if filename.endswith('pkl'):
-        wells, tiles = pd.read_pickle(filename)[['well', 'tile']].values.T
+        df_wells_tiles = pd.read_pickle(filename)
     elif filename.endswith('csv'):
-        wells, tiles = pd.read_csv(filename)[['well', 'tile']].values.T
+        df_wells_tiles = pd.read_csv(filename)
+
+    if include=='all':
+        wells,tiles = df_wells_tiles[['well','tile']].values.T
+
+    elif isinstance(include,list):
+        df_wells_tiles['well_tile'] = df_wells_tiles['well']+df_wells_tiles['tile'].astype(str)
+        include_wells_tiles  = [''.join(map(str,well_tile)) for well_tile in include]
+        wells, tiles = df_wells_tiles.query('well_tile==@include_wells_tiles')[['well', 'tile']].values.T
+
+    else:
+        wells, tiles = df_wells_tiles.query(include)[['well', 'tile']].values.T
+
     return wells, tiles
 
 
@@ -1047,3 +1080,72 @@ def input_files(suffix, cycles, directory='input', magnification='10X'):
     pattern = (f'{directory}/{magnification}_{{cycle}}/'
                f'{magnification}_{{cycle}}_{{{{well}}}}_Tile-{{{{tile}}}}.{suffix}')
     return expand(pattern, cycle=cycles)
+
+def initialize_paramsearch(config):
+    from snakemake.utils import Paramspace
+    from itertools import product
+    if config['MODE'] == 'paramsearch_segmentation':
+        if isinstance(config['THRESHOLD_DAPI'],list):
+            # user supplied values to test
+            thresholds_dapi = config['THRESHOLD_DAPI']
+        else:
+            # default, 200 below and 200 above given `THRESHOLD_DAPI`
+            thresholds_dapi = np.arange(config['THRESHOLD_DAPI']-200,config['THRESHOLD_DAPI']+300,100,dtype=int)
+
+        if isinstance(config['NUCLEUS_AREA'][0],list):
+            # user supplied values to test
+            nucleus_areas = config['NUCLEUS_AREA']
+        else:
+            # default, only test given `NUCLEUS_AREA` to keep grid search manageable
+            nucleus_areas = [config['NUCLEUS_AREA']]
+
+        if isinstance(config['THRESHOLD_CELL'],list):
+            # user supplied values to test
+            thresholds_cell = config['THRESHOLD_CELL']
+        else:
+            # default, 200 below and 200 above given `THRESHOLD_CELL`
+            thresholds_cell = np.arange(config['THRESHOLD_CELL']-200,config['THRESHOLD_CELL']+300,100,dtype=int)
+
+        df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI':t_dapi,'NUCLEUS_AREA_MIN':n_area_min,'NUCLEUS_AREA_MAX':n_area_max}
+            for t_dapi,(n_area_min,n_area_max) in product(thresholds_dapi,nucleus_areas)
+            ])
+
+        df_cell_segmentation = pd.DataFrame(thresholds_cell,columns=['THRESHOLD_CELL'])
+
+        nuclei_segmentation_paramspace = Paramspace(df_nuclei_segmentation,
+            filename_params=['THRESHOLD_DAPI','NUCLEUS_AREA_MIN','NUCLEUS_AREA_MAX'])
+
+        cell_segmentation_paramspace = Paramspace(df_cell_segmentation,
+            filename_params=['THRESHOLD_CELL'])
+
+        config['PROCESS_DIRECTORY'] = 'paramsearch'
+        config['REQUESTED_FILES'] = []
+        config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
+                f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif' 
+                for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
+        config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
+            f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
+            ]
+
+        return config, nuclei_segmentation_paramspace, cell_segmentation_paramspace
+
+    elif config['MODE'] == 'paramsearch_read-calling':
+        if isinstance(config['THRESHOLD_READS'],list):
+            # user supplied values to test
+            threshold_reads = config['THRESHOLD_READS']
+        else:
+            # default, min=10 max=1010 with increments of 50
+            thresholds_reads = np.arange(10,1060,50,dtype=int)
+
+        df_read_thresholds = pd.DataFrame(thresholds_reads,columns=['THRESHOLD_READS'])
+
+        read_calling_paramspace = Paramspace(df_read_thresholds,filename_params=['THRESHOLD_READS'])
+
+        config['PROCESS_DIRECTORY'] = 'paramsearch'
+        config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv']
+        config['REQUESTED_TAGS'] = []
+        config['TEMP_TAGS'] = [f'bases.{read_calling_paramspace.wildcard_pattern}.csv',
+            f'reads.{read_calling_paramspace.wildcard_pattern}.csv'
+            ]
+
+        return config, read_calling_paramspace
