@@ -8,6 +8,12 @@ import pandas as pd
 # "well_tile_list.csv" generated automatically when parsing "input_files.xlsx",
 # edit to restrict which well and tile positions are analyzed
 if config['INCLUDE_WELLS_TILES']=='all':
+    if config['MODE'] in ['gridsearch_segmentation','gridsearch_read-calling']:
+        raise ValueError('MODE="gridsearch_segmentation" or MODE="gridsearch_read-calling" should not '
+            'be run with all wells and tiles. Change the INCLUDE_WELLS_TILES parameters to include '
+            'only a subset of images.'
+            )
+
     WELLS, TILES = pd.read_csv(config['WELL_TILE_LIST'])[['well', 'tile']].values.T
 
 elif all(isinstance(entry,list) for entry in config['INCLUDE_WELLS_TILES']):
@@ -28,6 +34,39 @@ SBS_CYCLES = [config['SBS_CYCLE_FORMAT'].format(cycle=x) for x in config['SBS_CY
 channels = ('DAPI', 'SBS_G', 'SBS_T', 'SBS_A', 'SBS_C')
 LUTS = [getattr(ops.io, config['LUTS'][x]) for x in channels]
 DISPLAY_RANGES = [config['DISPLAY_RANGES'][x] for x in channels]
+
+# set paramspaces if gridsearch mode selected
+if config['MODE'] == 'gridsearch_segmentation':
+    from snakemake.utils import Paramspace
+    from itertools import product
+    import numpy as np
+    df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI':t_dapi,'NUCLEUS_AREA_0':n_area_0,'NUCLEUS_AREA_1':n_area_1}
+        for t_dapi,n_area_0,n_area_1
+        in product(np.arange(config['THRESHOLD_DAPI']-200,config['THRESHOLD_DAPI']+300,100),
+                np.arange(config['NUCLEUS_AREA'][0]-20,config['NUCLEUS_AREA'][0]+40,60),
+                np.arange(config['NUCLEUS_AREA'][1]-50,config['NUCLEUS_AREA'][1]+100,150)
+            )
+        ])
+
+    df_cell_segmentation = pd.DataFrame([{'THRESHOLD_CELL':t_cell}
+        for t_cell in np.arange(config['THRESHOLD_CELL']-200,config['THRESHOLD_CELL']+300,100)])
+
+    nuclei_segmentation_paramspace = Paramspace(df_nuclei_segmentation,filename_params=['THRESHOLD_DAPI','NUCLEUS_AREA_0','NUCLEUS_AREA_1'])
+    cell_segmentation_paramspace = Paramspace(df_cell_segmentation,filename_params=['THRESHOLD_CELL'])
+
+    config['REQUESTED_FILES'] = []
+    config['REQUESTED_TAGS'] = [f'segmentation_summary.{instance}.'
+            f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif' 
+            for instance in nuclei_segmentation_paramspace.instance_patterns]
+
+    config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
+        f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
+    ]
+
+elif config['MODE'] == 'gridsearch_read-calling':
+    raise ValueError(f'MODE="{config["MODE"]}" not yet implemented.')
+elif config['MODE']!='process':
+    raise ValueError(f'MODE="{config["MODE"]}" not recognized, use either "process" or "gridsearch"')
 
 # naming convention for input and processed files
 input_files = partial(ops.firesnake.input_files,
@@ -218,3 +257,52 @@ rule annotate_SBS_extra:
             df_reads=input[2], barcode_table=config['BARCODE_TABLE'], 
             sbs_cycles=config['SBS_CYCLES'],
             display_ranges=display_ranges[1:], luts=luts[1:], compress=1)
+
+if config['MODE'] == 'gridsearch_segmentation':
+    rule segment_nuclei_gridsearch:
+        input:
+            input_files('sbs.tif', SBS_CYCLES[0]),
+            # not used, just here to change the order of rule execution
+            processed_input('log.tif'),
+        output:
+            processed_output(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif')
+        params:
+            nuclei_segmentation = nuclei_segmentation_paramspace.instance
+        run:
+            Snake.segment_nuclei(output=output, data=input[0], 
+                threshold=params.nuclei_segmentation['THRESHOLD_DAPI'][0], 
+                area_min=params.nuclei_segmentation['NUCLEUS_AREA_0'][0], 
+                area_max=params.nuclei_segmentation['NUCLEUS_AREA_1'][0])
+
+    rule segment_cells_gridsearch:
+        input:
+            input_files('sbs.tif', SBS_CYCLES[0]),
+            processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif')
+        output:
+            processed_output(f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif')
+        params:
+            cell_segmentation = cell_segmentation_paramspace.instance
+        run:
+            Snake.segment_cells(output=output, 
+                data=input[0], nuclei=input[1], threshold=params.cell_segmentation['THRESHOLD_CELL'][0])
+
+    rule segment_gridsearch_summary:
+        input:
+            input_files('sbs.tif', SBS_CYCLES[0]),
+            processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif'),
+            [processed_input(f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.'
+                f'{cell_segmentation_instance}.tif') 
+                for cell_segmentation_instance in cell_segmentation_paramspace.instance_patterns
+                ]
+        output:
+            processed_output(f'segmentation_summary.{nuclei_segmentation_paramspace.wildcard_pattern}.'
+                f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif')
+        run:
+            data = ops.io.read_stack(input[0])
+            segmentations = [ops.io.read_stack(f) for f in input[1:]]
+            summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
+            ops.io.save_stack(output[0],
+                summary,
+                luts=LUTS[:2]+[ops.io.GLASBEY,]*len(segmentations),
+                display_ranges=DISPLAY_RANGES[:2]+[(0,segmentations[0].max()),]*len(segmentations)
+                )

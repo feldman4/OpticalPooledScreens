@@ -1,4 +1,8 @@
 PROCESS_DIRECTORY: 'process'
+MODE: 'process' # either 'process', 'gridsearch_segmentation', or 'gridsearch_read-calling'. 'gridsearch' options override 
+                # the requested files and tags and performs a small grid search of NUCLEUS_AREA, THRESHOLD_DAPI, and 
+                # THRESHOLD_CELL ('gridsearch_segmentation'), or of THRESHOLD_READS ('gridsearch_read-calling'). Segmentation
+                # parameters should be chosen either manually or by this grid search prior to running 'gridsearch_read-calling'.
 REQUESTED_FILES: ['combined.csv']
 REQUESTED_TAGS: [
   'phenotype_aligned.tif',
