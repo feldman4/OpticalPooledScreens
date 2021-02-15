@@ -1118,7 +1118,6 @@ def initialize_paramsearch(config):
         cell_segmentation_paramspace = Paramspace(df_cell_segmentation,
             filename_params=['THRESHOLD_CELL'])
 
-        config['PROCESS_DIRECTORY'] = 'paramsearch'
         config['REQUESTED_FILES'] = []
         config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
                 f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif' 
@@ -1141,7 +1140,6 @@ def initialize_paramsearch(config):
 
         read_calling_paramspace = Paramspace(df_read_thresholds,filename_params=['THRESHOLD_READS'])
 
-        config['PROCESS_DIRECTORY'] = 'paramsearch'
         config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv']
         config['REQUESTED_TAGS'] = []
         config['TEMP_TAGS'] = [f'bases.{read_calling_paramspace.wildcard_pattern}.csv',
