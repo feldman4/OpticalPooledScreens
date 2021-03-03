@@ -258,8 +258,8 @@ if config['MODE'] == 'paramsearch_segmentation':
 
     rule segment_paramsearch_summary:
         input:
-            input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
-            processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif'),
+            data = input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
+            segmentations = [processed_input(f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif')]+
             [processed_input(f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.'
                 f'{cell_segmentation_instance}.tif') 
                 for cell_segmentation_instance in cell_segmentation_paramspace.instance_patterns
@@ -268,14 +268,8 @@ if config['MODE'] == 'paramsearch_segmentation':
             processed_output(f'segmentation_summary.{nuclei_segmentation_paramspace.wildcard_pattern}.'
                 f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif')
         run:
-            import numpy as np
-            data = ops.io.read_stack(input[0])
-            segmentations = [ops.io.read_stack(f) for f in input[1:]]
-            summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
-            ops.io.save_stack(output[0],
-                summary,
-                luts=LUTS[:2]+[ops.io.GLASBEY,]*len(segmentations),
-                display_ranges=DISPLAY_RANGES[:2]+[(0,segmentations[0].max()),]*len(segmentations)
+            Snake.summarize_paramsearch_segmentation(output=output,data=input.data[0],segmentations=input.segmentations,
+                luts=LUTS[:2]+[ops.io.GLASBEY,]*len(input.segmentations)
                 )
 
 if config['MODE'] == 'paramsearch_read-calling':
@@ -308,30 +302,9 @@ if config['MODE'] == 'paramsearch_read-calling':
                 for read_calling_instance in read_calling_paramspace.instance_patterns],
                 zip, well=WELLS, tile=TILES)
         output:
-            (config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.csv')
+            table=(config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.csv'),
+            figure=(config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.pdf')
         run:
-            barcode_table = pd.read_csv(input.barcodes)
-            barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in config['SBS_CYCLES'])
-            barcodes = (barcode_table.assign(prefix=lambda x: 
-                                x['barcode'].apply(barcode_to_prefix))
-                            ['prefix']
-                            .pipe(set)
-                            )
-
-            df_reads = pd.concat([pd.read_csv(table) for table in input.reads])
-
-            def summarize(df):
-                df['mapped'] = df['barcode'].isin(barcodes)
-                return pd.Series({'mapped_reads':df['mapped'].value_counts()[True],
-                    'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
-                    'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
-                    'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
-                    'average_barcodes_per_cell':df.query('cell!=0')['cell'].value_counts().mean(),
-                    'average_mapped_barcodes_per_cell':df.query('(cell!=0)&(mapped)')['cell'].value_counts().mean()})
-
-            df_summary = df_reads.groupby(['well','tile','THRESHOLD_READS']).apply(summarize)
-
-            df_summary.to_csv(output[0])
-
-
-
+            Snake.summarize_paramsearch_reads(output=[output.table],barcode_table=input.barcodes,
+                reads_tables=input.reads,sbs_cycles=config['SBS_CYCLES'],figure_output=output.figure
+                )

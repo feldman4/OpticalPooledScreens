@@ -830,6 +830,77 @@ class Snake():
                 .join(barcode_info.rename(columns=lambda x: x + '_1'), 
                       on='cell_barcode_1')
                 )
+    @staticmethod
+    def _summarize_paramsearch_segmentation(data,segmentations):
+        summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
+        return summary
+
+    @staticmethod
+    def _summarize_paramsearch_reads(barcode_table,reads_tables,sbs_cycles,figure_output):
+        import matplotlib
+        import seaborn as sns
+
+        matplotlib.use('Agg')
+
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        barcodes = (barcode_table.assign(prefix=lambda x: 
+                            x['barcode'].apply(barcode_to_prefix))
+                        ['prefix']
+                        .pipe(set)
+                        )
+
+        df_reads = pd.concat(reads_tables)
+        df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
+
+        def summarize(df):
+            return pd.Series({'mapped_reads':df['mapped'].value_counts()[True],
+                'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
+                'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
+                'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
+                'average_reads_per_cell':df.query('cell!=0')['cell'].value_counts().mean(),
+                'average_mapped_reads_per_cell':df.query('(cell!=0)&(mapped)')['cell'].value_counts().mean(),
+                'cells_with_reads':df.query('(cell!=0)')['cell'].nunique(),
+                'cells_with_mapped_reads':df.query('(cell!=0)&(mapped)')['cell'].nunique()})
+
+        df_summary = df_reads.groupby(['well','tile','THRESHOLD_READS']).apply(summarize).reset_index()
+
+        # plot
+        fig, axes = matplotlib.pyplot.subplots(2,1,figsize=(7,10),sharex=True)
+
+        axes_right = [ax.twinx() for ax in axes]
+
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate',color='steelblue',ax=axes[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads',color='coral',ax=axes_right[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate_within_cells',color='steelblue',ax=axes[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads_within_cells',color='coral',ax=axes_right[0])
+        axes[0].set_ylabel('Mapping rate',fontsize=16)
+        axes_right[0].set_ylabel('Number of\nmapped reads',fontsize=16)
+        axes[0].set_title('Read mapping',fontsize=18)
+
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_reads_per_cell',color='steelblue',ax=axes[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_mapped_reads_per_cell',color='steelblue',ax=axes[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_reads',color='coral',ax=axes_right[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_mapped_reads',color='coral',ax=axes_right[1])
+        axes[1].set_ylabel('Mean reads per cell',fontsize=16)
+        axes_right[1].set_ylabel('Number of cells',fontsize=16)
+        axes[1].set_title('Read mapping per cell',fontsize=18)
+
+        [ax.get_lines()[1].set_linestyle('--') for ax in list(axes)+list(axes_right)]
+
+        axes[0].legend(handles=axes[0].get_lines()+axes_right[0].get_lines(),
+                       labels=['mapping rate,\nall reads','mapping rate,\nwithin cells','all mapped reads','mapped reads\nwithin cells'],loc=7)
+        axes[1].legend(handles=axes[1].get_lines()+axes_right[1].get_lines(),
+                       labels=['mean\nreads per cell','mean mapped\nreads per cell','cells with reads','cells with\nmapped reads'],loc=1)
+
+        axes[1].set_xlabel('THRESHOLD_READS',fontsize=16)
+        axes[1].set_xticks(df_summary['THRESHOLD_READS'].unique()[::2])
+
+        [ax.tick_params(axis='y',colors='steelblue') for ax in axes]
+        [ax.tick_params(axis='y',colors='coral') for ax in axes_right]
+
+        matplotlib.pyplot.savefig(figure_output,dpi=300,bbox_inches='tight')
+
+        return df_summary
 
     @staticmethod
     def add_method(class_, name, f):
@@ -1131,16 +1202,16 @@ def initialize_paramsearch(config):
     elif config['MODE'] == 'paramsearch_read-calling':
         if isinstance(config['THRESHOLD_READS'],list):
             # user supplied values to test
-            threshold_reads = config['THRESHOLD_READS']
+            thresholds_reads = config['THRESHOLD_READS']
         else:
-            # default, min=10 max=1010 with increments of 50
-            thresholds_reads = np.arange(10,1060,50,dtype=int)
+            # default, min=10 max=1000 with increments of 50
+            thresholds_reads = np.concatenate([np.array([10]),np.arange(50,1050,50,dtype=int)])
 
         df_read_thresholds = pd.DataFrame(thresholds_reads,columns=['THRESHOLD_READS'])
 
         read_calling_paramspace = Paramspace(df_read_thresholds,filename_params=['THRESHOLD_READS'])
 
-        config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv']
+        config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv','paramsearch_read-calling.summary.pdf']
         config['REQUESTED_TAGS'] = []
         config['TEMP_TAGS'] = [f'bases.{read_calling_paramspace.wildcard_pattern}.csv',
             f'reads.{read_calling_paramspace.wildcard_pattern}.csv'
