@@ -1,11 +1,13 @@
 import functools
 import multiprocessing
 
+import re
 import string
 from itertools import product
 from glob import glob
 
 import decorator
+from natsort import natsorted
 import numpy as np
 import pandas as pd
 
@@ -261,28 +263,47 @@ def expand_sep(df, col, sep=','):
      .assign(**{col: values}))
 
 
-def csv_frame(files_or_search, tqdn=False, **kwargs):
-    """Convenience function, pass either a list of files or a 
-    glob wildcard search term.
+
+def csv_frame(files_or_search, progress=lambda x: x, add_file=None, file_pat=None, sort=True, 
+              include_cols=None, exclude_cols=None, **kwargs):
+    """Convenience function, pass either a list of files or a glob wildcard search term.
     """
-    from natsort import natsorted
     
     def read_csv(f):
         try:
-            return pd.read_csv(f, **kwargs)
+            df = pd.read_csv(f, **kwargs)
         except pd.errors.EmptyDataError:
             return None
+        if add_file is not None:
+            df[add_file] = f
+        if include_cols is not None:
+            include_pat = include_cols if isinstance(include_cols, str) else '|'.join(include_cols)
+            keep = [x for x in df.columns if re.match(include_pat, x)]
+            df = df[keep]
+        if exclude_cols is not None:
+            exclude_pat = exclude_cols if isinstance(exclude_cols, str) else '|'.join(exclude_cols)
+            keep = [x for x in df.columns if not re.match(exclude_pat, x)]
+            df = df[keep]
+        if file_pat is not None:
+            match = re.match(f'.*?{file_pat}.*', f)
+            if match is None:
+                raise ValueError(f'{file_pat} failed to match {f}')
+            if match.groupdict():
+                for k,v in match.groupdict().items():
+                    df[k] = v
+            else:
+                if add_file is None:
+                    raise ValueError(f'must provide `add_file` or named groups in {file_pat}')
+                first = match.groups()[0]
+                df[add_file] = first
+        return df
     
     if isinstance(files_or_search, str):
         files = natsorted(glob(files_or_search))
     else:
         files = files_or_search
 
-    if tqdn:
-        from tqdm import tqdm_notebook as tqdn
-        return pd.concat([read_csv(f) for f in tqdn(files)], sort=True)
-    else:
-        return pd.concat([read_csv(f) for f in files], sort=True)
+    return pd.concat([read_csv(f) for f in progress(files)], sort=sort)
 
 
 def gb_apply_parallel(df, cols, func, n_jobs=None, tqdn=True):
