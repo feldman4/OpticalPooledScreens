@@ -9,6 +9,7 @@ package_dir = os.path.sep.join(
     os.path.normpath(__file__).split(os.path.sep)[:-3])
 aspera_openssh = os.path.join(package_dir, 'resources/asperaweb_id_dsa.openssh')
 ascp_guess = os.path.join(os.environ['HOME'], '.aspera/connect/bin/ascp')
+cell_idr_files = f'{package_dir}/resources/Cell_IDR_files.csv.gz'
 
 
 def write_pairlist(df_files, filename, remote_prefix='20191104-gcloud/'):
@@ -35,6 +36,11 @@ def format_ascp_command(ascp, pairlist, local='.'):
 def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     """Create a fresh analysis directory for Cell IDR experiment C (A549 cells, CROPseq library, 
     p65 antibody).
+    
+    :param ascp: path to ascp executable (see idr_example.ipynb for setup instructions)
+    :param well: one of A1,A2,A3,B1,B2,B3
+    :param tile: image tile to download (see idr_example.ipynb and Cell_IDR_files.csv.gz 
+        for available image tiles)
     """
     try:
         os.makedirs(directory)
@@ -59,7 +65,7 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     # select our example
     select_tile = 'idr_name == "experimentC" & well == @well & tile == @tile'
     select_image_tags = 'tag == ["phenotype", "sbs"]'    
-    df_idr = (pd.read_csv(f'{package_dir}/resources/Cell_IDR_files.csv.gz', low_memory=False)
+    df_idr = (pd.read_csv(cell_idr_files, low_memory=False)
      .query(select_tile)
      .query(select_image_tags)
     )
