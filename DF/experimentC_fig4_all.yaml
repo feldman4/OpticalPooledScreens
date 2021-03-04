@@ -11,7 +11,7 @@ REQUESTED_TAGS: [
 TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif'] 
 
 ### INPUT TO ANALYSIS
-WELL_TILE_LIST: 'well_tile_list_fig4_sample.csv'
+WELL_TILE_LIST: 'well_tile_list_fig4_all.csv'
 INPUT_DIRECTORY: 'input'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
