@@ -7,7 +7,8 @@ REQUESTED_TAGS: [
   'phenotype.csv',
   # 'annotate_SBS_extra.tif',
 ]
-TEMP_TAGS: []
+# discarded after processing to save space
+TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif'] 
 
 ### INPUT TO ANALYSIS
 INPUT_DIRECTORY: 'input'

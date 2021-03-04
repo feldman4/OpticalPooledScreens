@@ -1,4 +1,4 @@
-PROCESS_DIRECTORY: 'process_fig4'
+PROCESS_DIRECTORY: 'experimentC/process_fig4'
 REQUESTED_FILES: ['combined.csv']
 REQUESTED_TAGS: [
   'phenotype_aligned.tif',
@@ -7,11 +7,12 @@ REQUESTED_TAGS: [
   'phenotype.csv',
   # 'annotate_SBS_extra.tif',
 ]
-TEMP_TAGS: []
+# discarded after processing to save space
+TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif'] 
 
 ### INPUT TO ANALYSIS
-INPUT_DIRECTORY: 'input'
-WELL_TILE_LIST: 'well_tile_list_fig4_small.csv'
+INPUT_DIRECTORY: 'experimentC/input'
+WELL_TILE_LIST: 'experimentC/well_tile_list_example.csv'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
 SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis

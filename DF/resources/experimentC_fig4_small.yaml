@@ -1,18 +1,18 @@
-PROCESS_DIRECTORY: 'process_fig4_all'
+PROCESS_DIRECTORY: 'experimentC/process_fig4'
 REQUESTED_FILES: ['combined.csv']
 REQUESTED_TAGS: [
   'phenotype_aligned.tif',
   'cells.csv',
-  'phenotype.csv',
   'annotate_SBS.tif',
-  'annotate_SBS_extra.tif',
+  'phenotype.csv',
+  # 'annotate_SBS_extra.tif',
 ]
 # discarded after processing to save space
 TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif'] 
 
 ### INPUT TO ANALYSIS
-WELL_TILE_LIST: 'well_tile_list_fig4_all.csv'
-INPUT_DIRECTORY: 'input'
+INPUT_DIRECTORY: 'experimentC/input'
+WELL_TILE_LIST: 'experimentC/well_tile_list_fig4_small.csv'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
 SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis
@@ -23,7 +23,7 @@ PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
 THRESHOLD_DAPI: 200  # threshold for segmenting nuclei
 THRESHOLD_CELL: 600  # threshold for segmenting cells
-THRESHOLD_READS: 75  # threshold for detecting reads
+THRESHOLD_READS: 50  # threshold for detecting reads
 NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
     'i', 'j', 'area', 
