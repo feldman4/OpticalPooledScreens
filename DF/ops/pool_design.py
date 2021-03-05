@@ -14,6 +14,8 @@ num_cores = 4
 # LOAD TABLES
 
 def validate_design(df_design):
+    if 0 in df_design['dialout'].values:
+        raise ValueError('dialout primers are one-indexed; value of 0 in "dialout" column is invalid.')
     for group, df in df_design.groupby('group'):
         x = df.drop_duplicates(['prefix_length', 'edit_distance'])
         if len(x) > 1:
