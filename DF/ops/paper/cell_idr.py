@@ -37,7 +37,8 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     """Create a fresh analysis directory for Cell IDR experiment C (A549 cells, CROPseq library, 
     p65 antibody).
     
-    :param ascp: path to ascp executable (see idr_example.ipynb for setup instructions)
+    :param ascp: path to ascp executable (download from 
+        https://downloads.asperasoft.com/en/downloads/62, see idr_example.ipynb for details)
     :param well: one of A1,A2,A3,B1,B2,B3
     :param tile: image tile to download (see idr_example.ipynb and Cell_IDR_files.csv.gz 
         for available image tiles)
