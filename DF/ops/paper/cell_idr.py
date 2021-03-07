@@ -61,8 +61,10 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
         print(f'Linked {there}')
 
     if not shutil.which(ascp):
-        print(f'Error: Aspera ascp executable not found at {ascp}')
-        raise QuitError
+        ascp = shutil.which('ascp'):
+        if ascp is None:
+            print(f'Error: Aspera ascp executable not found at {ascp}')
+            raise QuitError
 
     # select our example
     select_tile = 'idr_name == "experimentC" & well == @well & tile == @tile'
@@ -85,6 +87,9 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     print('Setup complete.\nTo run the example snakemake pipeline, execute the following:')
     print(f'cd {directory}')
     print('snakemake --cores --configfile=config.yaml')
+
+
+
 
 
 class QuitError(Exception):
