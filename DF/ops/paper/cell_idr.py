@@ -2,6 +2,7 @@ import fire
 import os
 import sys
 import subprocess
+import shutil
 
 import pandas as pd
 
@@ -59,7 +60,7 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
         os.symlink(f'{package_dir}/resources/{here}', f'{directory}/{there}')
         print(f'Linked {there}')
 
-    if not os.path.exists(ascp):
+    if not shutil.which(ascp):
         print(f'Error: Aspera ascp executable not found at {ascp}')
         raise QuitError
 
