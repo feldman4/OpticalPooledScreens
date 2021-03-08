@@ -21,6 +21,7 @@ snakemake_config = 'experimentC/config_small_fig3.yaml'
 
 blue = (0.3, 0.3, 0.9)
 
+
 def load_prefixes():
     """Load sequenced prefixes of sgRNAs. In experiment C one cycle of SBS was skipped.
     """
@@ -37,7 +38,7 @@ class PanelA():
         order = [2, 3, 0, 1]
         compensation = (df_bases
          .query('cell > 0')
-         .pipe(get_compensation_matrix)
+         .pipe(PanelA.get_compensation_matrix)
          .iloc[order, order]
         )
 
@@ -45,15 +46,15 @@ class PanelA():
         hex_colors = '#0F8040', '#ED1E24', '#B9519F', '#6ECDDD'
         label_colors = [to_rgb(row[2]) for row in channel_info]
 
-        plot_compensation_notebook(compensation.values, label_colors, figsize)
-        return 
+        fig = PanelA.plot_compensation_notebook(compensation.values, label_colors, figsize)
+        return fig
 
     def plot_compensation_notebook(compensation, label_colors, figsize):
         """Luke's original colab function
         """
         fontsize = 24
 
-        fig = plt.subplots(figsize=figsize)
+        fig, _ = plt.subplots(figsize=figsize)
         im = plt.imshow(compensation,vmin=compensation.min(),vmax=0.5,cmap='inferno')
         ax = im.axes
         cbar = plt.colorbar(ax=ax,use_gridspec=True,shrink=0.8)
