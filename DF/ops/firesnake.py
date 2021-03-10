@@ -851,3 +851,70 @@ def input_files(suffix, cycles, directory='input', magnification='10X'):
     pattern = (f'{directory}/{magnification}_{{cycle}}/'
                f'{magnification}_{{cycle}}_{{{{well}}}}_Tile-{{{{tile}}}}.{suffix}')
     return expand(pattern, cycle=cycles)
+
+def initialize_paramsearch(config):
+    from snakemake.utils import Paramspace
+    from itertools import product
+    if config['MODE'] == 'paramsearch_segmentation':
+        if isinstance(config['THRESHOLD_DAPI'],list):
+            # user supplied values to test
+            thresholds_dapi = config['THRESHOLD_DAPI']
+        else:
+            # default, 200 below and 200 above given `THRESHOLD_DAPI`
+            thresholds_dapi = np.arange(config['THRESHOLD_DAPI']-200,config['THRESHOLD_DAPI']+300,100,dtype=int)
+
+        if isinstance(config['NUCLEUS_AREA'][0],list):
+            # user supplied values to test
+            nucleus_areas = config['NUCLEUS_AREA']
+        else:
+            # default, only test given `NUCLEUS_AREA` to keep grid search manageable
+            nucleus_areas = [config['NUCLEUS_AREA']]
+
+        if isinstance(config['THRESHOLD_CELL'],list):
+            # user supplied values to test
+            thresholds_cell = config['THRESHOLD_CELL']
+        else:
+            # default, 200 below and 200 above given `THRESHOLD_CELL`
+            thresholds_cell = np.arange(config['THRESHOLD_CELL']-200,config['THRESHOLD_CELL']+300,100,dtype=int)
+
+        df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI':t_dapi,'NUCLEUS_AREA_MIN':n_area_min,'NUCLEUS_AREA_MAX':n_area_max}
+            for t_dapi,(n_area_min,n_area_max) in product(thresholds_dapi,nucleus_areas)
+            ])
+
+        df_cell_segmentation = pd.DataFrame(thresholds_cell,columns=['THRESHOLD_CELL'])
+
+        nuclei_segmentation_paramspace = Paramspace(df_nuclei_segmentation,
+            filename_params=['THRESHOLD_DAPI','NUCLEUS_AREA_MIN','NUCLEUS_AREA_MAX'])
+
+        cell_segmentation_paramspace = Paramspace(df_cell_segmentation,
+            filename_params=['THRESHOLD_CELL'])
+
+        config['REQUESTED_FILES'] = []
+        config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
+                f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif'
+                for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
+        config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
+            f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
+            ]
+
+        return config, nuclei_segmentation_paramspace, cell_segmentation_paramspace
+
+    elif config['MODE'] == 'paramsearch_read-calling':
+        if isinstance(config['THRESHOLD_READS'],list):
+            # user supplied values to test
+            thresholds_reads = config['THRESHOLD_READS']
+        else:
+            # default, min=10 max=1000 with increments of 50
+            thresholds_reads = np.concatenate([np.array([10]),np.arange(50,1050,50,dtype=int)])
+
+        df_read_thresholds = pd.DataFrame(thresholds_reads,columns=['THRESHOLD_READS'])
+
+        read_calling_paramspace = Paramspace(df_read_thresholds,filename_params=['THRESHOLD_READS'])
+
+        config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv','paramsearch_read-calling.summary.pdf']
+        config['REQUESTED_TAGS'] = []
+        config['TEMP_TAGS'] = [f'bases.{read_calling_paramspace.wildcard_pattern}.csv',
+            f'reads.{read_calling_paramspace.wildcard_pattern}.csv'
+            ]
+
+        return config, read_calling_paramspace
