@@ -503,6 +503,8 @@ class Snake():
 
         return nuclei_tracked
 
+    # SNAKEMAKE
+
     @staticmethod
     def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles, 
                              join='outer'):
@@ -528,6 +530,77 @@ class Snake():
                 .join(barcode_info.rename(columns=lambda x: x + '_1'), 
                       on='cell_barcode_1')
                 )
+    @staticmethod
+    def _summarize_paramsearch_segmentation(data,segmentations):
+        summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
+        return summary
+
+    @staticmethod
+    def _summarize_paramsearch_reads(barcode_table,reads_tables,sbs_cycles,figure_output):
+        import matplotlib
+        import seaborn as sns
+
+        matplotlib.use('Agg')
+
+        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        barcodes = (barcode_table.assign(prefix=lambda x:
+                            x['barcode'].apply(barcode_to_prefix))
+                        ['prefix']
+                        .pipe(set)
+                        )
+
+        df_reads = pd.concat(reads_tables)
+        df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
+
+        def summarize(df):
+            return pd.Series({'mapped_reads':df['mapped'].value_counts()[True],
+                'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
+                'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
+                'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
+                'average_reads_per_cell':df.query('cell!=0')['cell'].value_counts().mean(),
+                'average_mapped_reads_per_cell':df.query('(cell!=0)&(mapped)')['cell'].value_counts().mean(),
+                'cells_with_reads':df.query('(cell!=0)')['cell'].nunique(),
+                'cells_with_mapped_reads':df.query('(cell!=0)&(mapped)')['cell'].nunique()})
+
+        df_summary = df_reads.groupby(['well','tile','THRESHOLD_READS']).apply(summarize).reset_index()
+
+        # plot
+        fig, axes = matplotlib.pyplot.subplots(2,1,figsize=(7,10),sharex=True)
+
+        axes_right = [ax.twinx() for ax in axes]
+
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate',color='steelblue',ax=axes[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads',color='coral',ax=axes_right[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate_within_cells',color='steelblue',ax=axes[0])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads_within_cells',color='coral',ax=axes_right[0])
+        axes[0].set_ylabel('Mapping rate',fontsize=16)
+        axes_right[0].set_ylabel('Number of\nmapped reads',fontsize=16)
+        axes[0].set_title('Read mapping',fontsize=18)
+
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_reads_per_cell',color='steelblue',ax=axes[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_mapped_reads_per_cell',color='steelblue',ax=axes[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_reads',color='coral',ax=axes_right[1])
+        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_mapped_reads',color='coral',ax=axes_right[1])
+        axes[1].set_ylabel('Mean reads per cell',fontsize=16)
+        axes_right[1].set_ylabel('Number of cells',fontsize=16)
+        axes[1].set_title('Read mapping per cell',fontsize=18)
+
+        [ax.get_lines()[1].set_linestyle('--') for ax in list(axes)+list(axes_right)]
+
+        axes[0].legend(handles=axes[0].get_lines()+axes_right[0].get_lines(),
+                       labels=['mapping rate,\nall reads','mapping rate,\nwithin cells','all mapped reads','mapped reads\nwithin cells'],loc=7)
+        axes[1].legend(handles=axes[1].get_lines()+axes_right[1].get_lines(),
+                       labels=['mean\nreads per cell','mean mapped\nreads per cell','cells with reads','cells with\nmapped reads'],loc=1)
+
+        axes[1].set_xlabel('THRESHOLD_READS',fontsize=16)
+        axes[1].set_xticks(df_summary['THRESHOLD_READS'].unique()[::2])
+
+        [ax.tick_params(axis='y',colors='steelblue') for ax in axes]
+        [ax.tick_params(axis='y',colors='coral') for ax in axes_right]
+
+        matplotlib.pyplot.savefig(figure_output,dpi=300,bbox_inches='tight')
+
+        return df_summary
 
     @staticmethod
     def add_method(class_, name, f):
@@ -721,11 +794,44 @@ def get_kwarg_defaults(f):
     return defaults
 
 
-def load_well_tile_list(filename):
+def load_well_tile_list(filename, include='all'):
+    """Read and format a table of acquired wells and tiles for snakemake.
+
+    Parameters
+    ----------
+    filename : str, path object, or file-like object
+        File path to table of acquired wells and tiles.
+
+    include : str or list of lists, default "all"
+        If "all", keeps all wells and tiles defined in the supplied table. If any
+        other str, this is used as a query of the well-tile table to restrict
+        which sites are analyzed. If a list of [well,tile] pair lists, restricts
+        analysis to this defined set of fields-of-view.
+
+    Returns
+    -------
+    wells : np.ndarray
+        Array of included wells, should be zipped with `tiles`.
+
+    tiles : np.ndarray
+        Array of included tiles, should be zipped with `wells`.
+    """
     if filename.endswith('pkl'):
-        wells, tiles = pd.read_pickle(filename)[['well', 'tile']].values.T
+        df_wells_tiles = pd.read_pickle(filename)
     elif filename.endswith('csv'):
-        wells, tiles = pd.read_csv(filename)[['well', 'tile']].values.T
+        df_wells_tiles = pd.read_csv(filename)
+
+    if include=='all':
+        wells,tiles = df_wells_tiles[['well','tile']].values.T
+
+    elif isinstance(include,list):
+        df_wells_tiles['well_tile'] = df_wells_tiles['well']+df_wells_tiles['tile'].astype(str)
+        include_wells_tiles  = [''.join(map(str,well_tile)) for well_tile in include]
+        wells, tiles = df_wells_tiles.query('well_tile==@include_wells_tiles')[['well', 'tile']].values.T
+
+    else:
+        wells, tiles = df_wells_tiles.query(include)[['well', 'tile']].values.T
+
     return wells, tiles
 
 
