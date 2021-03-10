@@ -300,11 +300,12 @@ if config['MODE'] == 'paramsearch_read-calling':
             barcodes=config['BARCODE_TABLE'],
             reads=expand([processed_input(f'reads.{read_calling_instance}.csv')
                 for read_calling_instance in read_calling_paramspace.instance_patterns],
-                zip, well=WELLS, tile=TILES)
+                zip, well=WELLS, tile=TILES),
+            cells=expand(processed_input('cells.tif'), zip, well=WELLS, tile=TILES)
         output:
             table=(config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.csv'),
             figure=(config['PROCESS_DIRECTORY'] + '/paramsearch_read-calling.summary.pdf')
         run:
             Snake.summarize_paramsearch_reads(output=[output.table],barcode_table=input.barcodes,
-                reads_tables=input.reads,sbs_cycles=config['SBS_CYCLES'],figure_output=output.figure
+                reads_tables=input.reads,cells=input.cells,sbs_cycles=config['SBS_CYCLES'],figure_output=output.figure
                 )

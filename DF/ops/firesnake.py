@@ -536,7 +536,7 @@ class Snake():
         return summary
 
     @staticmethod
-    def _summarize_paramsearch_reads(barcode_table,reads_tables,sbs_cycles,figure_output):
+    def _summarize_paramsearch_reads(barcode_table,reads_tables,cells,sbs_cycles,figure_output):
         import matplotlib
         import seaborn as sns
 
@@ -549,7 +549,12 @@ class Snake():
                         .pipe(set)
                         )
 
+        n_cells = [(len(np.unique(labels))-1) for labels in cells]
+
         df_reads = pd.concat(reads_tables)
+        df_reads = pd.concat([df.assign(total_cells=cell_count) 
+            for cell_count,(_,df) in zip(n_cells,df_reads.groupby(['well','tile'],sort=False))]
+            )
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
 
         def summarize(df):
@@ -557,8 +562,8 @@ class Snake():
                 'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
                 'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
                 'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
-                'average_reads_per_cell':df.query('cell!=0')['cell'].value_counts().mean(),
-                'average_mapped_reads_per_cell':df.query('(cell!=0)&(mapped)')['cell'].value_counts().mean(),
+                'average_reads_per_cell':df.query('cell!=0').pipe(len)/df.iloc[0]['total_cells'],
+                'average_mapped_reads_per_cell':df.query('(cell!=0)&(mapped)').pipe(len)/df.iloc[0]['total_cells'],
                 'cells_with_reads':df.query('(cell!=0)')['cell'].nunique(),
                 'cells_with_mapped_reads':df.query('(cell!=0)&(mapped)')['cell'].nunique()})
 
