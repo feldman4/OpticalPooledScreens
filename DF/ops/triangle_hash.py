@@ -215,15 +215,10 @@ def remove_overlap(xs, ys):
     ys = set(map(tuple, ys))
     return [tuple(x) for x in xs if tuple(x) not in ys]
 
-def brute_force_pairs(df_0, df_1, n_jobs=-2, tqdn=True):
-    if tqdn:
-        from tqdm.auto import tqdm
-        work = tqdm(work = df_1.groupby('site'),'site')
-    else:
-        work = df_1.groupby('site')
-
+def brute_force_pairs(df_0, df_1):
+    from tqdm import tqdm_notebook as tqdn
     arr = []
-    for site, df_s in work:
+    for site, df_s in tqdn(df_1.groupby('site'), 'site'):
 
         def work_on(df_t):
             rotation, translation, score = evaluate_match(df_t, df_s)
@@ -248,8 +243,8 @@ def parallel_process(func, args_list, n_jobs, tqdn=True):
     from joblib import Parallel, delayed
     work = args_list
     if tqdn:
-        from tqdm.auto import tqdm
-        work = tqdm(work, 'work')
+        from tqdm import tqdm_notebook 
+        work = tqdm_notebook(work, 'work')
     return Parallel(n_jobs=n_jobs)(delayed(func)(*w) for w in work)
 
 
