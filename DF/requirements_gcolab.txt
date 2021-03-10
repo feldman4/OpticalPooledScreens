@@ -1,0 +1,17 @@
+decorator==4.4.2
+joblib==0.15.1
+matplotlib
+natsort==7.0.1
+networkx==2.4
+numpy
+pandas
+python-Levenshtein==0.12.0
+scikit-image==0.17.2
+scikit-learn==0.21.3
+scipy==1.4.1
+seaborn==0.10.1
+six
+snakemake==5.5.4
+tables==3.5.1
+tqdm
+urllib3
