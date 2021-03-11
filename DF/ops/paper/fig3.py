@@ -6,6 +6,7 @@ import yaml
 
 from ..utils import csv_frame
 from ..in_situ import dataframe_to_values, transform_medians
+from ..plates import add_global_xy
 
 channel_info = [
     ('G', '572 nm', '#0F8040'), 
@@ -20,6 +21,14 @@ barcode_table = 'experimentC/barcodes.csv'
 snakemake_config = 'experimentC/config_small_fig3.yaml'
 
 blue = (0.3, 0.3, 0.9)
+hex_colors = '#0F8040', '#ED1E24', '#B9519F', '#6ECDDD'
+
+default_rc_params = {
+    'axes.labelsize': 16,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'font.sans-serif': 'Arial',
+}
 
 
 def load_prefixes():
@@ -33,7 +42,14 @@ def load_prefixes():
 
 
 class PanelA():
-    def plot(figsize=(10, 10)):
+    rc_params = default_rc_params.copy()
+    rc_params.update({
+      'axes.labelpad': 10,
+      'font.size': 14,
+    })
+    colorbar_tick_size = 12
+
+    def plot(figsize=(4.5, 5)):
         df_bases = csv_frame(bases_csv_search)
         order = [2, 3, 0, 1]
         compensation = (df_bases
@@ -43,7 +59,6 @@ class PanelA():
         )
 
         from matplotlib.colors import to_rgb
-        hex_colors = '#0F8040', '#ED1E24', '#B9519F', '#6ECDDD'
         label_colors = [to_rgb(row[2]) for row in channel_info]
 
         fig = PanelA.plot_compensation_notebook(compensation.values, label_colors, figsize)
@@ -52,31 +67,29 @@ class PanelA():
     def plot_compensation_notebook(compensation, label_colors, figsize):
         """Luke's original colab function
         """
-        fontsize = 24
+        
+        with plt.rc_context(PanelA.rc_params):
+            fig, _ = plt.subplots(figsize=figsize)
+            im = plt.imshow(compensation,vmin=0, vmax=0.5,cmap='inferno')
+            ax = im.axes
+            cbar = plt.colorbar(ax=ax,use_gridspec=True,shrink=0.8)
+            cbar.ax.tick_params(labelsize=PanelA.colorbar_tick_size)
+            for i,row in enumerate(compensation):
+                for j,col in enumerate(row):
+                    color = 'w' if col <0.4 else 'k'
+                    text = ax.text(j, i, "%.3f"%col,
+                                    ha="center", va="center", color=color)
+            ax.set_xticks([])
+            ax.set_yticks([])
+                
+            xlabel_ax = plt.axes([0.125,0.1675,0.62,0.015])
+            xlabel_ax.set_xticks([0,1,2,3])
+            xlabel_ax.set_xticklabels(['G','T','A','C'])
+            xlabel_ax.set_yticks([])
+            xlabel_ax.imshow(np.array(label_colors)[None],aspect='auto')
 
-        fig, _ = plt.subplots(figsize=figsize)
-        im = plt.imshow(compensation,vmin=compensation.min(),vmax=0.5,cmap='inferno')
-        ax = im.axes
-        cbar = plt.colorbar(ax=ax,use_gridspec=True,shrink=0.8)
-
-        cbar.ax.tick_params(labelsize=16)
-        for i,row in enumerate(compensation):
-            for j,col in enumerate(row):
-                color = 'w' if col <0.4 else 'k'
-                text = ax.text(j, i, "%.3f"%col,
-                                ha="center", va="center", color=color, size=fontsize)
-        ax.set_xticks([])
-        ax.set_yticks([])
-            
-        xlabel_ax = plt.axes([0.125,0.1675,0.62,0.015])
-        xlabel_ax.set_xticks([0,1,2,3])
-        xlabel_ax.set_xticklabels(['G','T','A','C'], fontsize=fontsize)
-        xlabel_ax.set_yticks([])
-        xlabel_ax.imshow(np.array(label_colors)[None],aspect='auto')
-
-        ax.set_yticks([0,1,2,3])
-        ax.set_yticklabels(['572 nm','615 nm','680 nm','732 nm'], fontsize=fontsize)
-        # plt.savefig('../correction_matrix_20201120.png',dpi=300,bbox_inches='tight',transparent=True)
+            ax.set_yticks([0,1,2,3])
+            ax.set_yticklabels(['572 nm','615 nm','680 nm','732 nm'])
         return fig
 
     def get_compensation_matrix(df_bases):    
@@ -92,18 +105,21 @@ class PanelA():
 
 
 class PanelB():
-    rc_params = {
-        'axes.labelsize': 16,
+    rc_params = default_rc_params.copy()
+    rc_params.update({
         'axes.labelpad': 10,
-    }
-    title_fontsize = 20 # axes.titlesize doesn't work with FacetGrid?
+        'legend.fontsize': 14,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+    })
+    title_fontsize = 16 # axes.titlesize doesn't work with FacetGrid?
 
     legend_items = {
-        'unmapped': 'unmapped reads', 
         'G': '"G" base call',
         'T': '"T" base call',
         'A': '"A" base call',
         'C': '"C" base call',
+        'unmapped': 'unmapped reads', 
     }
 
 
@@ -151,7 +167,7 @@ class PanelB():
         return df_plot
 
     def scatter_calls(df_plot, calls, cycles=[1, 9], 
-                      xlim=(-1000, 7000), ylim=(-1000, 7000), height=3):
+                      xlim=(-1000, 7000), ylim=(-1000, 7000), height=2.5):
         """
         """
         colors = {k: v for k,_,v in channel_info}
@@ -184,7 +200,7 @@ class PanelB():
             
         return fg
 
-    def make_legend(facetgrids, figsize=(4, 3)):
+    def make_legend(facetgrids, figsize=(2.5, 3)):
         """Collect info from list of FacetGrid objects to make a legend.
         """
         legend_items = PanelB.legend_items
@@ -195,14 +211,15 @@ class PanelB():
 
         handles = [legend_info[x] for x in legend_items]
 
-        fig, ax = plt.subplots()
-        leg = fig.legend(handles, legend_items.values(),
-                        title='',fontsize=18,markerscale=3, mode='expand',frameon=False,
-                        bbox_to_anchor=(0,0,1,1))
-        ax.xaxis.set_visible(False)
-        ax.yaxis.set_visible(False)
-        sns.despine(ax=ax, left=True, bottom=True)
-        fig.tight_layout()
+        with plt.rc_context(PanelB.rc_params):
+            fig, ax = plt.subplots()
+            leg = fig.legend(handles, legend_items.values(),
+                            title='', markerscale=3, frameon=False,
+                            bbox_to_anchor=(0,0,1,1), ncol=3)
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
+            sns.despine(ax=ax, left=True, bottom=True)
+            fig.tight_layout()
         return fig
 
     def plot():
@@ -215,9 +232,9 @@ class PanelB():
         # make these just right
         ax1 = fg1.axes.flat[0]
         ax2 = fg2.axes.flat[0]
-        ax1.set_xticks([0, 2000, 4000, 6000])
+        ax1.set_xticks([0, 3000, 6000])
         ax1.set_yticks([0, 2000, 4000, 6000])
-        ax2.set_xticks([0, 2000, 4000, 6000, 8000])
+        ax2.set_xticks([0, 4000, 8000])
         ax2.set_yticks([0, 4000, 8000, 12000])
         ax2.set_xlim([-1000, 8000])
         ax2.set_ylim([-1000, 12300])
@@ -249,9 +266,10 @@ class PanelC():
         ax1.set_yticks([0, 1, 2, 3, 4])
         ax0.set_xticks([25, 100, 200, 300, 400])
         ax0.set_xlim([25, max_x])
+        
         return fig
 
-    def plot_mapping(figsize=(4.5, 3.2)):
+    def plot_mapping(figsize=(4.15, 3.2)):
         prefixes = load_prefixes()
         
         search = 'experimentC/process_fig3/*reads.csv'
@@ -311,7 +329,7 @@ class PanelD():
         'lines.linewidth': 3,
     }
 
-    def plot(figsize=(4.5, 3.2)):
+    def plot(figsize=(4.15, 3.2)):
 
         prefixes = load_prefixes()
         df_reads = (csv_frame(reads_csv_search)
@@ -332,10 +350,65 @@ class PanelD():
         labels = {'Experiment': 'green', 'Random sequences': 'gray'}
         with plt.rc_context(PanelD.rc_params):
             fig, ax = plt.subplots(figsize=figsize)
-            for label in labels:
-                df_mapping[label].plot(ax=ax, color=labels[label], x_compat=True)
+            for i, label in enumerate(labels):
+                df_mapping[label].plot(ax=ax, color=labels[label], x_compat=True, zorder=-i)
             ax.set_xticks(np.arange(1, 10))
-            ax.legend()
-            ax.set_ylabel('Mapping rate\n(5,738 barcodes)')
+            ax.legend(handlelength=1.5)
+            ax.set_ylabel('Read mapping rate')
+        ax.set_ylim([0, 1.04])
         return fig
+
+class PanelE():
+    well_spacing = 38000 # decrease spacing between wells
+    label_size_6w = 14
+    cmap = 'inferno'
+
+    def label_6w(df_stats, fig, label_pad=9000):
+        ax = fig.axes[0]
+        x0 = df_stats['global_x'].min() - label_pad
+        y0 = df_stats['global_y'].max() + label_pad*0.7
+
+        well_spacing = PanelE.well_spacing
+        opts = dict(size=PanelE.label_size_6w, ha='center', va='center')
+        ax.text(x0, 0, 'A', **opts)
+        ax.text(x0, -well_spacing, 'B', **opts)
+
+        ax.text(0, y0, '1', **opts)
+        ax.text(well_spacing, y0, '2', **opts)
+        ax.text(well_spacing*2, y0, '3', **opts)
+
+        ax.scatter(0, 0, s=4000, zorder=-1, color='lightgray', marker='s')
+
+
+    def plot_well(df_stats, col, vmin, vmax, figsize=(4, 3), cbar_pad=0.73, s=5, cbar=True):
+        cols = ['well', 'tile', 'global_x', 'global_y']
+
+        fig, ax = plt.subplots(figsize=figsize)
+        df_stats.plot(kind='scatter', x='global_x', y='global_y', c=col, edgecolors='none',
+                    marker='s', ax=ax, s=s, cmap=PanelE.cmap, vmin=vmin, vmax=vmax)
+
+        ax.axis('equal')
+        ax.axis('off')
+        ax_cbar = fig.axes[1]
+            
+        if cbar:
+            ax_cbar.set_ylabel('')
+            bbox = list(ax_cbar.get_position().bounds)
+            bbox[0] = cbar_pad
+            bbox[2] *= 0.9
+            ax_cbar.set_position(bbox)
+        else:
+            ax_cbar.remove()
+
+        return fig
+
+    def calculate_stats(df_combined, df_reads):
+        cols = ['well', 'tile']
+        A = df_combined.groupby(cols).size().rename('cell_count')
+        B = df_combined.groupby(cols)['single_mapped'].mean().rename('mapped_to_one')
+        C = df_reads.groupby(cols)['mapped'].mean().rename('read_mapping')
+        return (pd.concat([A, B, C], axis=1).reset_index()
+                .pipe(add_global_xy, well_spacing=PanelE.well_spacing, grid_shape=(25, 25))
+                )
+
 
