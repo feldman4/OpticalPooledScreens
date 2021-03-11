@@ -40,8 +40,8 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     
     :param ascp: path to ascp executable (download from 
         https://downloads.asperasoft.com/en/downloads/62, see idr_example.ipynb for details)
-    :param well: one of A1,A2,A3,B1,B2,B3
-    :param tile: image tile to download (see idr_example.ipynb and Cell_IDR_files.csv.gz 
+    :param well: one of A1,A2,A3,B1,B2,B3 or "all"
+    :param tile: image tile to download or "all" (see idr_example.ipynb and Cell_IDR_files.csv.gz 
         for available image tiles)
     """
     try:
@@ -61,13 +61,18 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
         print(f'Linked {there}')
 
     if not shutil.which(ascp):
-        ascp = shutil.which('ascp'):
+        ascp = shutil.which('ascp')
         if ascp is None:
             print(f'Error: Aspera ascp executable not found at {ascp}')
             raise QuitError
 
     # select our example
-    select_tile = 'idr_name == "experimentC" & well == @well & tile == @tile'
+    select_tile = 'idr_name == "experimentC"'
+    if well != 'all':
+        select_tile += ' & well == @well'
+    if tile != 'all': 
+        select_tile += ' & tile == @tile'
+
     select_image_tags = 'tag == ["phenotype", "sbs"]'    
     df_idr = (pd.read_csv(cell_idr_files, low_memory=False)
      .query(select_tile)
@@ -89,7 +94,10 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     print('snakemake --cores --configfile=config.yaml')
 
 
-
+def setup_nature_protocols(directory, ascp=ascp_guess):
+    """Setup the analysis used to generate metrics in Fig 3 and Fig 4.
+    """
+    return setup_example(directory, ascp=ascp, well='all', tile='all')
 
 
 class QuitError(Exception):
@@ -97,9 +105,11 @@ class QuitError(Exception):
     """
     pass
 
+
 if __name__ == '__main__':
     commands = {
-        'setup_example': setup_example
+        'setup_example': setup_example,
+        'setup_figure3': setup_figure3,
     }
     try:
         fire.Fire(commands)
