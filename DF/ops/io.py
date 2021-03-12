@@ -179,6 +179,84 @@ def save_stack(name, data, luts=None, display_ranges=None,
                                (50839, 'B', len(tag_50839), tag_50839, True),
                                ])
 
+def format_input(input_table, channel_order=None, n_jobs=1, **kwargs):
+    """Formats filenames and concatenates images from the same field of view
+    and cycle of imaging if necessary (e.g., when individual channels are split
+    between tiff file outputs of microscope control software). See example
+    input_file.xlsx table. Also saves `input/well_tile_list.csv` to use as input
+    for a snakemake workflow.
+
+    Parameters
+    ----------
+    input_table : str, path object, or file-like object
+        Path to table defining how files should be formatted. Can be any valid
+        input to `pd.read_excel` or `pd.read_csv`.
+
+    channel_order : dict of channel name -> channel order, optional
+        If not provided, default is for standard ordering of SBS channels. Can
+        be used to provide custom ordering of channels.
+
+    n_jobs : int, default 1
+        Number of parallelized processes to use for formatting files.
+
+    Other Parameters
+    ----------------
+    **kwargs
+        Keyword arguments passed to `joblib.Parallel` for parallelized
+        processing.
+
+    """
+    if input_table.endswith(('xlsx','xls')):
+        df = pd.read_excel(input_table).drop_duplicates()
+    else:
+        df = pd.read_csv(input_table).drop_duplicates()
+
+    if channel_order is None:
+        channel_order = {'ALL':0,'DAPI':1,'G':2,'T':3,'A':4,'C':5}
+
+    df['channel_order'] = df['channel'].map(channel_order)
+
+    # check for unknwon channel names
+    unknown_channels = df['channel'][df['channel_order'].isna()].pipe(set)
+
+    if len(unknown_channels)>0:
+        raise ValueError(f'Channel(s) {", ".join(unknown_channels)} '
+            'not recognized. Custom channels and channel orders can be'
+            ' defined using the "channel_order" argument')
+
+    # check for missing channel files when concatenating channels
+    if df.query('channel!="ALL"').pipe(len) > 0:
+        # same number of channels for every image within a cycle
+        # (may be different across cycles)
+        missing = (df
+            .groupby('cycle')
+            ['channel']
+            .value_counts()
+            .groupby('cycle')
+            .nunique()
+            .loc[lambda x: x!=1]
+            .index
+            .astype(str)
+            )
+        if len(missing)>0:
+            raise ValueError('Varying number of channels per site in '
+                f'cycle(s) {", ".join(missing)}, likely missing entry '
+                'to input table.')
+
+    def process_site(output_file,df_input):
+        stacked = np.array([read_stack(input_file) for input_file in
+            df_input.sort_values('channel_order')['original filename']])
+        save_stack(output_file,stacked)
+
+    if n_jobs != 1:
+        from joblib import Parallel, delayed
+        Parallel(n_jobs=n_jobs, **kwargs)(delayed(process_site)(output_file,df_input)
+            for output_file,df_input in df.groupby('snakemake filename'))
+    else:
+        for output_file,df_input in df.groupby('snakemake filename'):
+            process_site(output_file,df_input)
+
+    df[['well','tile']].drop_duplicates().to_csv('input/well_tile_list.csv',index=False)
 
 def infer_luts_display_ranges(data, luts, display_ranges):
     """Deal with user input.
