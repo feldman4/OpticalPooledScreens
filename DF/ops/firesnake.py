@@ -27,15 +27,55 @@ class Snake():
     are automatically loaded by `Snake.load_methods`.
     """
 
+    # ALIGNMENT AND SEGMENTATION
+
     @staticmethod
     def _align_SBS(data, method='DAPI', upsample_factor=2, window=2, cutoff=1,
         align_channels=slice(1, None), keep_trailing=False):
         """Rigid alignment of sequencing cycles and channels. 
 
-        Expects `data` to be an array with dimensions (CYCLE, CHANNEL, I, J).
-        A centered subset of data is used if `window` is greater 
-        than one. Subpixel alignment is done if `upsample_factor` is greater than
-        one (can be slow).
+        Parameters
+        ----------
+
+        data : numpy array
+            Image data, expected dimensions of (CYCLE, CHANNEL, I, J).
+
+        method : {'DAPI','SBS_mean'}, default 'DAPI'
+            Method for aligning 'data' across cycles. 'DAPI' uses cross-correlation between subsequent cycles
+            of DAPI images, assumes sequencing channels are aligned to DAPI images. 'SBS_mean' uses the
+            mean background signal from the SBS channels to determine image offsets between cycles of imaging,
+            again using cross-correlation.
+
+        upsample_factor : int, default 2
+            Subpixel alignment is done if `upsample_factor` is greater than one (can be slow).
+            Parameter passed to skimage.feature.register_translation.
+
+        window : int, default 2
+            A centered subset of data is used if `window` is greater than one. The size of the removed border is
+            int((x/2.) * (1 - 1/float(window))).
+
+        cutoff : float, default 1
+            Threshold for removing extreme values from SBS channels when using method='SBS_mean'. Channels are normalized
+            to the 70th percentile, and normalized values greater than `cutoff` are replaced by `cutoff`.
+
+        align_channels : slice object or None, default slice(1,None)
+            If not None, aligns channels (defined by the passed slice object) to each other within each cycle. If
+            None, does not align channels within cycles. Useful in particular for cases where images for all stage
+            positions are acquired for one SBS channel at a time, i.e., acquisition order of channels(positions).
+
+        keep_trailing : boolean, default True
+            If True, keeps only the minimum number of trailing channels across cycles. E.g., if one cycle contains 6 channels,
+            but all others have 5, only uses trailing 5 channels for alignment.
+
+        n : int, default 1
+            The first SBS channel in `data`.
+
+        Returns
+        -------
+
+        aligned : numpy array
+            Aligned image data, same dimensions as `data` unless `data` contained different numbers of channels between cycles
+            and keep_trailing=True.
         """
         data = np.array(data)
         if keep_trailing:
@@ -46,6 +86,7 @@ class Snake():
 
         # align SBS channels for each cycle
         aligned = data.copy()
+
         if align_channels is not None:
             align_it = lambda x: Align.align_within_cycle(
                 x, window=window, upsample_factor=upsample_factor)
@@ -59,7 +100,7 @@ class Snake():
                                 window=window, upsample_factor=upsample_factor)
         elif method == 'SBS_mean':
             # calculate cycle offsets using the average of SBS channels
-            target = Align.apply_window(aligned[:, 1:], window=window).max(axis=1)
+            target = Align.apply_window(aligned[:, n:], window=window).max(axis=1)
             normed = Align.normalize_by_percentile(target)
             normed[normed > cutoff] = cutoff
             offsets = Align.calculate_offsets(normed, upsample_factor=upsample_factor)
@@ -73,6 +114,28 @@ class Snake():
     def _align_by_DAPI(data_1, data_2, channel_index=0, upsample_factor=2):
         """Align the second image to the first, using the channel at position 
         `channel_index`. The first channel is usually DAPI.
+
+        Parameters
+        ----------
+
+        data_1 : numpy array
+            Image data to align to, expected dimensions of (CHANNEL, I, J).
+
+        data_2 : numpy array
+            Image data to align, expected dimensions of (CHANNEL, I, J).
+
+        channel_index : int, default 0
+            DAPI channel index
+
+        upsample_factor : int, default 2
+            Subpixel alignment is done if `upsample_factor` is greater than one (can be slow).
+            Parameter passed to skimage.feature.register_translation.
+
+        Returns
+        -------
+
+        aligned : numpy array
+            `data_2` with calculated offsets applied to all channels.
         """
         images = data_1[channel_index], data_2[channel_index]
         _, offset = ops.process.Align.calculate_offsets(images, upsample_factor=upsample_factor)
@@ -81,11 +144,37 @@ class Snake():
         return aligned
         
     @staticmethod
-    def _segment_nuclei(data, threshold, area_min, area_max):
-        """Find nuclei from DAPI. Find cell foreground from aligned but unfiltered 
-        data. Expects data to have shape (CHANNEL, I, J).
-        """
+    def _segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
+        """Find nuclei from DAPI. Uses local mean filtering to find cell foreground from aligned
+        but unfiltered data, then filters identified regions by mean intensity threshold and area ranges.
 
+        Parameters
+        ----------
+
+        data : numpy array
+            Image data, expected dimensions of (CHANNEL, I, J) with the DAPI channel in channel index 0.
+            Can also be a single-channel DAPI image of dimensions (I,J).
+
+        threshold : float
+            Foreground regions with mean DAPI intensity greater than `threshold` are labeled
+            as nuclei.
+
+        area_min, area_max : floats
+            After individual nuclei are segmented from foreground using watershed algorithm, nuclei with
+            `area_min` < area < `area_max` are retained.
+
+        smooth : float, default 1.35
+            Size of gaussian kernel used to smooth the distance map to foreground prior to watershedding.
+
+        radius : float, default 15
+            Radius of disk used in local mean thresholding to identify foreground.
+
+        Returns
+        -------
+
+        nuclei : numpy array, dtype uint16
+            Labeled segmentation mask of nuclei, dimensions are same as trailing two dimensions of `data`.
+        """
         if isinstance(data, list):
             dapi = data[0]
         elif data.ndim == 3:
@@ -94,7 +183,8 @@ class Snake():
             dapi = data
 
         kwargs = dict(threshold=lambda x: threshold, 
-            area_min=area_min, area_max=area_max)
+            area_min=area_min, area_max=area_max,
+            smooth=smooth, radius=radius)
 
         # skimage precision warning
         with warnings.catch_warnings():
@@ -103,12 +193,13 @@ class Snake():
         return nuclei.astype(np.uint16)
 
     @staticmethod
-    def _segment_nuclei_stack(dapi, threshold, area_min, area_max):
+    def _segment_nuclei_stack(dapi, threshold, area_min, area_max, smooth=1.35, radius=15):
         """Find nuclei from a nuclear stain (e.g., DAPI). Expects data to have shape (I, J) 
         (segments one image) or (N, I, J) (segments a series of DAPI images).
         """
         kwargs = dict(threshold=lambda x: threshold, 
-            area_min=area_min, area_max=area_max)
+            area_min=area_min, area_max=area_max,
+            smooth=smooth, radius=radius)
 
         find_nuclei = ops.utils.applyIJ(ops.process.find_nuclei)
         # skimage precision warning
@@ -122,6 +213,28 @@ class Snake():
         """Segment cells from aligned data. Matches cell labels to nuclei labels.
         Note that labels can be skipped, for example if cells are touching the 
         image boundary.
+
+        Parameters
+        ----------
+
+        data : numpy array
+            Image data to use for cell boundary segmentation, expected dimensions of (CYCLE, CHANNEL, I, J),
+            (CHANNEL, I, J), or (I,J). Takes minimum intensity over cycles, followed by mean intensity over
+            channels if both are present. If channels are present, but not cycles, takes median over channels.
+
+        nuclei : numpy array, dtype uint16
+            Labeled segmentation mask of nuclei, dimensions are same as trailing two dimensions of `data`. Uses
+            nuclei as seeds for watershedding and matches cell labels to nuclei labels.
+
+        threshold : float
+            Threshold used on `data` after reduction to 2 dimensions to identify cell boundaries.
+
+        Returns
+        -------
+
+        cells : numpy array, dtype uint16
+            Labeled segmentation mask of cell boundaries, dimensions are same as trailing dimensions of `data`.
+            Labels match `nuclei` labels.
         """
         if data.ndim == 4:
             # no DAPI, min over cycles, mean over channels
@@ -145,10 +258,29 @@ class Snake():
 
         return cells
 
+    # IN SITU
+
     @staticmethod
     def _transform_log(data, sigma=1, skip_index=None):
         """Apply Laplacian-of-Gaussian filter from scipy.ndimage.
-        Use `skip_index` to skip transforming a channel (e.g., DAPI with `skip_index=0`).
+
+        Parameters
+        ----------
+
+        data : numpy array
+            Aligned SBS image data, expected dimensions of (CYCLE, CHANNEL, I, J).
+
+        sigma : float, default 1
+            size of gaussian kernel used in Laplacian-of-Gaussian filter
+
+        skip_index : None or int, default None
+            If an int, skips transforming a channel (e.g., DAPI with `skip_index=0`).
+
+        Returns
+        -------
+
+        loged : numpy array
+            LoG-ed `data`
         """
         data = np.array(data)
         loged = ops.process.log_ndi(data, sigma=sigma)
@@ -158,12 +290,33 @@ class Snake():
 
     @staticmethod
     def _compute_std(data, remove_index=None):
-        """Use standard deviation to estimate sequencing read locations.
+        """Use standard deviation over cycles, followed by mean across channels
+        to estimate sequencing read locations. If only 1 cycle is present, takes
+        standard deviation across channels.
+
+        Parameters
+        ----------
+
+        data : numpy array
+            LoG-ed SBS image data, expected dimensions of (CYCLE, CHANNEL, I, J).
+
+        remove_index : None or int, default None
+            Index of `data` to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI)
+
+        Returns
+        -------
+
+        consensus : numpy array
+            Standard deviation score for each pixel, dimensions of (I,J).
         """
         if remove_index is not None:
             data = remove_channels(data, remove_index)
 
-        leading_dims = tuple(range(0, data.ndim - 2))
+        # for 1-cycle experiments
+        if len(data.shape)==3:
+            data = data[:,None,...]
+
+        # leading_dims = tuple(range(0, data.ndim - 2))
         # consensus = np.std(data, axis=leading_dims)
         consensus = np.std(data, axis=0).mean(axis=0)
 
@@ -172,7 +325,27 @@ class Snake():
     @staticmethod
     def _find_peaks(data, width=5, remove_index=None):
         """Find local maxima and label by difference to next-highest neighboring
-        pixel.
+        pixel. Conventionally this is used to estimate SBS read locations by inputting
+        the standard deviation score as returned by Snake.compute_std().
+
+        Parameters
+        ----------
+
+        data : numpy array
+            2D image data
+
+        width : int, default 5
+            Neighborhood size for finding local maxima.
+
+        remove_index : None or int, default None
+            Index of `data` to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI)
+
+        Returns
+        -------
+
+        peaks : numpy array
+            Local maxima scores, dimensions same as `data`. At a maximum, the value is max - min in the defined
+            neighborhood, elsewhere zero.
         """
         if remove_index is not None:
             data = remove_channels(data, remove_index)
@@ -188,7 +361,26 @@ class Snake():
 
     @staticmethod
     def _max_filter(data, width, remove_index=None):
-        """Apply a maximum filter in a window of `width`.
+        """Apply a maximum filter in a window of `width`. Conventionally operates on Laplacian-of-Gaussian
+        filtered SBS data, dilating sequencing channels to compensate for single-pixel alignment error.
+
+        Parameters
+        ----------
+
+        data : numpy array
+            Image data, expected dimensions of (..., I, J) with up to 4 total dimenions.
+
+        width : int
+            Neighborhood size for max filtering
+
+        remove_index : None or int, default None
+            Index of `data` to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI)
+
+        Returns
+        -------
+
+        maxed : numpy array
+            Maxed `data` with preserved dimensions.
         """
         import scipy.ndimage.filters
 
@@ -209,8 +401,37 @@ class Snake():
         """Find the signal intensity from `maxed` at each point in `peaks` above 
         `threshold_peaks`. Output is labeled by `wildcards` (e.g., well and tile) and 
         label at that position in integer mask `cells`.
-        """
 
+        Parameters
+        ----------
+
+        maxed : numpy array
+            Base intensity at each point, output of Snake.max_filter(), expected dimenions
+            of (CYCLE, CHANNEL, I, J).
+
+        peaks : numpy array
+            Peaks/local maxima score for each pixel, output of Snake.find_peaks().
+
+        cells : numpy array, dtype uint16
+            Labeled segmentation mask of cell boundaries for labeling reads.
+
+        threshold_reads : float
+            Threshold for `peaks` for identifying candidate sequencing reads.
+
+        wildcards : dict
+            Metadata to include in output table, e.g., well, tile, etc. In Snakemake, use wildcards
+            object.
+
+        bases : string, default 'GTAC'
+            Order of bases corresponding to the order of acquired SBS channels in `maxed`.
+
+        Returns
+        -------
+
+        df_bases : pandas DataFrame
+            Table of all candidate sequencing reads with intensity of each base for every cycle,
+            (I,J) position of read, and metadata from `wildcards`.
+        """
         if maxed.ndim == 3:
             maxed = maxed[None]
 
@@ -234,9 +455,32 @@ class Snake():
 
     @staticmethod
     def _call_reads(df_bases, peaks=None, correction_only_in_cells=True):
-        """Median correction performed independently for each tile.
-        Use the `correction_only_in_cells` flag to specify if correction
-        is based on reads within cells, or all reads.
+        """Call reads by compensating for channel cross-talk and calling the base
+        with highest corrected intensity for each cycle. This "median correction"
+        is performed independently for each tile.
+
+        Parameters
+        ----------
+
+        df_bases : pandas DataFrame
+            Table of base intensity for all candidate reads, output of Snake.extract_bases()
+
+        peaks : None or numpy array, default None
+            Peaks/local maxima score for each pixel (output of Snake.find_peaks()) to be included
+            in the df_reads table for downstream QC or other analysis. If None, does not include
+            peaks scores in returned df_reads table.
+
+        correction_only_in_cells : boolean, default True
+            If true, restricts median correction/compensation step to account only for reads that
+            are within a cell, as defined by the cell segmentation mask passed into
+            Snake.extract_bases(). Often identified spots outside of cells are not true sequencing
+            reads.
+
+        Returns
+        -------
+
+        df_reads : pandas DataFrame
+            Table of all reads with base calls resulting from SBS compensation and related metadata.
         """
         if df_bases is None:
             return
@@ -260,15 +504,45 @@ class Snake():
         return df_reads
 
     @staticmethod
-    def _call_cells(df_reads, q_min=0):
-        """Median correction performed independently for each tile.
+    def _call_cells(df_reads, df_pool=None, q_min=0):
+        """Call the most-common barcode reads for each cell. If df_pool is supplied,
+        prioritizes reads mapping to expected sequences.
+
+        Parameters
+        ----------
+
+        df_reads : pandas DataFrame
+            Table of all called reads, output of Snake.call_reads()
+
+        df_pool : None or pandas DataFrame, default None
+            Table of designed barcode sequences for mapping reads to expected barcodes. Expected
+            columns are 'sgRNA', 'gene_symbol', and 'gene_id'.
+
+        q_min : float in the range [0,1)
+            Minimum quality score for read inclusion in the cell calling process.
+
+        Returns
+        -------
+
+        df_cells : pandas DataFrame
+            Table of all cells containing sequencing reads, listing top two most common barcode
+            sequences. If df_pool is supplied, prioritizes reads mapping to expected sequences.
         """
         if df_reads is None:
             return
         
-        return (df_reads
-            .query('Q_min >= @q_min')
-            .pipe(ops.in_situ.call_cells))
+        if df_pool is None:
+            return (df_reads
+                .query('Q_min >= @q_min')
+                .pipe(ops.in_situ.call_cells))
+        else:
+            prefix_length = len(df_reads.iloc[0].barcode) # get the number of completed SBS cycles
+            df_pool[PREFIX] = df_pool.apply(lambda x: x.sgRNA[:prefix_length],axis=1)
+            return (df_reads
+                .query('Q_min >= @q_min')
+                .pipe(ops.in_situ.call_cells_mapping,df_pool))
+
+    # PHENOTYPE FEATURE EXTRACTION
 
     @staticmethod
     def _annotate_SBS(log, df_reads):
@@ -336,6 +610,32 @@ class Snake():
     def _extract_features(data, labels, wildcards, features=None):
         """Extracts features in dictionary and combines with generic region
         features.
+
+        Parameters
+        ----------
+
+        data : numpy array
+            Image data of expected dimensions (CHANNEL, I, J)
+
+        labels : numpy array
+            Labeled segmentation mask defining objects to extract features from, dimensions mathcing
+            trailing (I,J) dimensions of `data`.
+
+        wildcards : dict
+            Metadata to include in output table, e.g., well, tile, etc. In Snakemake, use wildcards
+            object.
+
+        features : None or dict of 'key':function, default None
+            Features to extract from `data` within `labels` and their definining function calls on an
+            skimage regionprops object. E.g., features={'max_intensity':lambda r: r.intensity_image[r.image].max()}.
+            Many pre-defined feature functions and dictionaries are available in the features.py module.
+
+        Returns
+        -------
+
+        df : pandas DataFrame
+            Table of all labeled regions in `labels` and their corresponding `features` measurements from
+            `data`.
         """
         from ops.process import feature_table
         from ops.features import features_basic

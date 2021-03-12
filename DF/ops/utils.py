@@ -164,8 +164,8 @@ def groupby_apply2(df_1, df_2, cols, f, tqdn=True):
     d_2 = {k: v for k,v in df_2.groupby(cols)}
 
     if tqdn:
-        from tqdm import tqdm_notebook
-        progress = tqdm_notebook
+        from tqdm.auto import tqdm
+        progress = tqdm
     else:
         progress = lambda x: x
 
@@ -318,8 +318,8 @@ def gb_apply_parallel(df, cols, func, n_jobs=None, tqdn=True):
     grouped = df.groupby(cols)
     names, work = zip(*grouped)
     if tqdn:
-        from tqdm import tqdm_notebook 
-        work = tqdm_notebook(work, str(cols))
+        from tqdm.auto import tqdm
+        work = tqdm(work, str(cols))
     results = Parallel(n_jobs=n_jobs)(delayed(func)(w) for w in work)
 
     if isinstance(results[0], pd.DataFrame):

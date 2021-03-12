@@ -3,7 +3,7 @@ from . import utils
 import networkx as nx
 import pandas as pd
 import numpy as np
-import scipy.spatial.kdtree
+from scipy.spatial import cKDTree
 from collections import Counter
 
 from scipy.interpolate import UnivariateSpline
@@ -132,7 +132,7 @@ def get_edges(df1, df2):
     x1 = df1[['i', 'j', 'frame', 'label']].values
     x2 = df2[['i', 'j', 'frame', 'label']].values
     
-    kdt = scipy.spatial.kdtree.KDTree(df1[['i', 'j']])
+    kdt = cKDTree(df1[['i', 'j']])
     points = df2[['i', 'j']]
 
     result = kdt.query(points, neighboring_points)
