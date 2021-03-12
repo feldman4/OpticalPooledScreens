@@ -14,6 +14,8 @@ num_cores = 4
 # LOAD TABLES
 
 def validate_design(df_design):
+    if 0 in df_design['dialout'].values:
+        raise ValueError('dialout primers are one-indexed; value of 0 in "dialout" column is invalid.')
     for group, df in df_design.groupby('group'):
         x = df.drop_duplicates(['prefix_length', 'edit_distance'])
         if len(x) > 1:
@@ -237,7 +239,7 @@ def build_test(df_oligos, dialout_primers):
     pat = pat.format(fwd=sites[0], rev=sites[1])
 
     kosuri = {}
-    for i, (fwd, rev) in enumerate(dialout_primers):
+    for i, (fwd, rev) in enumerate(dialout_primers,start=1):
         kosuri[fwd] = 'fwd_{0}'.format(i)
         kosuri[rev] = 'rev_{0}'.format(i)
 
@@ -430,7 +432,7 @@ def maxy_clique_groups(cm, group_ids, verbose=False):
             index = None
 
         # keep index
-        if index:
+        if index is not None:
             selected.append(index)
             d3[id_] += 1
             available = available[available != index]
@@ -449,7 +451,7 @@ def maxy_clique_groups(cm, group_ids, verbose=False):
     return selected
 
 
-def sparse_dist_parallel(hash_buckets, min_distance, distance=None):
+def sparse_dist_parallel(hash_buckets, threshold, distance=None):
     from multiprocessing import Pool
 
     n = num_cores * 10
@@ -457,7 +459,7 @@ def sparse_dist_parallel(hash_buckets, min_distance, distance=None):
 
     arr = []
     for i, j in zip(ix, ix[1:]):
-        arr += [(hash_buckets[i:j], min_distance, distance)]
+        arr += [(hash_buckets[i:j], threshold, distance)]
 
     with Pool(num_cores) as p:
         results = p.starmap(sparse_dist, arr)
