@@ -4,6 +4,7 @@ import pandas as pd
 import six
 import struct
 import warnings
+import fire
 
 from . import utils
 import ops.constants
@@ -179,7 +180,7 @@ def save_stack(name, data, luts=None, display_ranges=None,
                                (50839, 'B', len(tag_50839), tag_50839, True),
                                ])
 
-def format_input(input_table, channel_order=None, n_jobs=1, **kwargs):
+def format_input(input_table, n_jobs=1, channel_order=None, **kwargs):
     """Formats filenames and concatenates images from the same field of view
     and cycle of imaging if necessary (e.g., when individual channels are split
     between tiff file outputs of microscope control software). See example
@@ -364,3 +365,12 @@ def load_stitching_offsets(filename):
             coordinates += [parts[-1].strip()]
     
     return [(i,j) for j,i in map(literal_eval, coordinates)]
+
+if __name__ == '__main__':
+    commands = {
+        'format_input': format_input
+    }
+    try:
+        fire.Fire(commands)
+    except QuitError:
+        sys.exit(1)
