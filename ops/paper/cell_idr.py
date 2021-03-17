@@ -109,7 +109,7 @@ class QuitError(Exception):
 if __name__ == '__main__':
     commands = {
         'setup_example': setup_example,
-        'setup_figure3': setup_figure3,
+        'setup_nature_protocols': setup_nature_protocols,
     }
     try:
         fire.Fire(commands)
