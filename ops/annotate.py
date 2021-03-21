@@ -27,7 +27,8 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
 
     The dataframe should contain data from a single image, which is loaded from
     `label_mask` if provided, or else guessed based on descriptors in the first 
-    row of `df` and `tag`. 
+    row of `df` and `tag`. If `return_key` is true, also return dictionary from 
+    labels to values.
     """
     if df[label].duplicated().any():
         raise ValueError('duplicate rows present')
