@@ -107,7 +107,7 @@ rule segment_nuclei:
         Snake.segment_nuclei(output=output, data=input[0], 
             threshold=config['THRESHOLD_DAPI'], 
             area_min=config['NUCLEUS_AREA'][0], 
-            area_max=config['NUCLEUS_AREA'][1])
+            area_max=config['NUCLEUS_AREA'][1], compress=1)
 
 rule segment_cells:
     input:
@@ -117,7 +117,8 @@ rule segment_cells:
         processed_output('cells.tif')
     run:
         Snake.segment_cells(output=output, 
-            data=input[0], nuclei=input[1], threshold=config['THRESHOLD_CELL'])
+            data=input[0], nuclei=input[1], 
+            threshold=config['THRESHOLD_CELL'], compress=1)
 
 rule extract_bases:
     input:
