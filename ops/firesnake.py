@@ -808,6 +808,18 @@ class Snake():
     @staticmethod
     def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles, 
                              join='outer'):
+        """Combine sequencing and phenotype tables with one row per cell, using key 
+        (well, tile, cell). The cell column labels must be the same in both tables (e.g., both 
+        tables generated from the same cell or nuclei segmentation). The default method of joining
+        (outer) preserves cells present in only the sequencing table or phenotype table (with null
+        values for missing data).
+        
+        The barcode table is then joined using its `barcode` column to the most abundant 
+        (`cell_barcode_0`) and second-most abundant (`cell_barcode_1`) barcodes for each cell. 
+        The substring (prefix) of `barcode` used for joining is determined by the `sbs_cycles` 
+        index. Duplicate prefixes are marked in the `duplicate_prefix_0` and `duplicate_prefix_1` 
+        columns (e.g., if insufficient sequencing is available to disambiguate two barcodes).
+        """
         if isinstance(sbs_tables, pd.DataFrame):
             sbs_tables = [sbs_tables]
         if isinstance(phenotype_tables, pd.DataFrame):
@@ -819,8 +831,11 @@ class Snake():
         df_combined = pd.concat([df_sbs, df_phenotype], join=join, axis=1).reset_index()
         
         barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
-        df_barcodes = (barcode_table.assign(prefix=lambda x: 
-                            x['barcode'].apply(barcode_to_prefix)))
+        df_barcodes = (barcode_table
+         .assign(prefix=lambda x: x['barcode'].apply(barcode_to_prefix))
+         .assign(duplicate_prefix=lambda x: x['prefix'].duplicated(keep=False))
+         )
+
         if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
             df_barcodes = df_barcodes.drop('barcode', axis=1)
         
@@ -830,6 +845,7 @@ class Snake():
                 .join(barcode_info.rename(columns=lambda x: x + '_1'), 
                       on='cell_barcode_1')
                 )
+
     @staticmethod
     def _summarize_paramsearch_segmentation(data,segmentations):
         summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
