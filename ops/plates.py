@@ -6,8 +6,19 @@ import pandas as pd
 
 def add_global_xy(df, well_spacing, grid_shape, grid_spacing='10X', factor=1., 
     ij=None, xy=None, tile='tile'):
-    """Adds global x and y coordinates to a dataframe with 
-    columns indicating (i, j) or (x, y) positions. 
+    """Adds `global_x and `global_y` coordinates based on well and tile positions. Arguments 
+    `well_spacing`, `grid_shape`, and `grid_spacing` are provided to the `plate_coordinate` 
+    function.
+    
+    If `ij` or `xy` column names are provided, these are multiplied by `factor` and added to the 
+    global coordinates.
+
+    Example:
+
+    (df_cells
+     .pipe(add_global_xy, '6w', (25, 25), ij=('i_cell', 'j_cell'))
+    )
+
     """
     # TODO: document better, factor default?
     
@@ -27,8 +38,8 @@ def add_global_xy(df, well_spacing, grid_shape, grid_spacing='10X', factor=1.,
         global_x = x + df[J] * factor
         global_y = y + df[I] * factor
     else:
-        global_x = x
-        global_y = y
+        global_x = np.array(x)
+        global_y = np.array(y)
 
     global_y *= -1
     return df.assign(global_x=global_x, global_y=global_y)
