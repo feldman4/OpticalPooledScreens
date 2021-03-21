@@ -343,29 +343,31 @@ def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
     from scipy.spatial import cKDTree
     import networkx as nx
 
-    I, J = ij
-    x = df_cells[GLOBAL_X] + df_cells[J]
-    y = df_cells[GLOBAL_Y] + df_cells[I]
-    barcodes = df_cells[barcode_col]
-    barcodes = np.array(barcodes)
+    barcodes = df_cells[barcode_col].values
 
-    kdt = cKDTree(np.array([x, y]).T)
+    I, J = ij
+    kdt = cKDTree(np.array([df_cells[J], df_cells[I]]).T)
     num_cells = len(df_cells)
 
     if verbose:
-        message = 'searching for clusters among {} {} objects'
-        print(message.format(num_cells, barcode_col))
+        print(f'searching for clusters among {num_cells} {barcode_col} objects')
     pairs = kdt.query_pairs(radius)
-    pairs = np.array(list(pairs))
+    
+    # detect clusters
+    if len(pairs) == 0:
+        clusters = []
+    else:
+        pairs = np.array(list(pairs))
 
-    x = barcodes[pairs]
-    y = x[:, 0] == x[:, 1]
+        x = barcodes[pairs]
+        y = x[:, 0] == x[:, 1]
 
-    G = nx.Graph()
-    G.add_edges_from(pairs[y])
+        G = nx.Graph()
+        G.add_edges_from(pairs[y])
 
-    clusters = list(nx.connected_components(G))
+        clusters = list(nx.connected_components(G))
 
+    # fill in -1 for objects not in a cluster
     cluster_index = np.zeros(num_cells, dtype=int) - 1
     for i, c in enumerate(clusters):
         cluster_index[list(c)] = i
@@ -374,6 +376,8 @@ def add_clusters(df_cells, barcode_col=BARCODE_0, radius=50,
     df_cells[CLUSTER] = cluster_index
     df_cells[CLUSTER_SIZE] = (df_cells
                               .groupby(CLUSTER)[barcode_col].transform('size'))
+    
+    # objects not in a cluster have cluster size 1
     df_cells.loc[df_cells[CLUSTER] == -1, CLUSTER_SIZE] = 1
     return df_cells
 
