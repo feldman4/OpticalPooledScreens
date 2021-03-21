@@ -5,30 +5,33 @@ import pandas as pd
 
 
 def add_global_xy(df, well_spacing, grid_shape, grid_spacing='10X', factor=1., 
-    ij=('i', 'j'), xy=('x', 'y'), tile='tile'):
+    ij=None, xy=None, tile='tile'):
     """Adds global x and y coordinates to a dataframe with 
     columns indicating (i, j) or (x, y) positions. 
     """
+    # TODO: document better, factor default?
     
-    I, J = ij
-    X, Y = xy
-    df = df.copy()
+    if ij is not None and xy is not None:
+        raise ValueError('Provide ij or xy but not both.')
+
     wt = list(zip(df['well'], df[tile]))
     d = {(w,t): plate_coordinate(w, t, well_spacing, grid_spacing, grid_shape) for w,t in set(wt)}
     y, x = zip(*[d[k] for k in wt])
 
-    if 'x' in df:
-        df['global_x'] = x + df[X] * factor
-        df['global_y'] = y + df[Y] * factor
-    elif 'i' in df:
-        df['global_x'] = x + df[J] * factor
-        df['global_y'] = y + df[I] * factor
+    if xy is not None:
+        X, Y = xy
+        global_x = x + df[X] * factor
+        global_y = y + df[Y] * factor
+    elif ij is not None:
+        I, J = ij
+        global_x = x + df[J] * factor
+        global_y = y + df[I] * factor
     else:
-        df['global_x'] = x
-        df['global_y'] = y
+        global_x = x
+        global_y = y
 
-    df['global_y'] *= -1
-    return df
+    global_y *= -1
+    return df.assign(global_x=global_x, global_y=global_y)
 
 
 def plate_coordinate(well, tile, well_spacing, grid_spacing, grid_shape):
