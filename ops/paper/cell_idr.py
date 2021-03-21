@@ -84,7 +84,13 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     command = format_ascp_command(ascp, pairlist, local=directory)
 
     print(f'Downloading {len(df_idr)} files from Cell-IDR with command: {command}')
-    subprocess.run(command, shell=True)
+    try:
+        subprocess.check_call(command, shell=True)
+    except subprocess.CalledProcessError as e:
+        print(f'Error in downloading files using {ascp}. This can be a user network issue. '
+            'Try a secure network with better connectivity.'
+            )
+        raise QuitError
 
     well_tile_list = f'{directory}/experimentC/well_tile_list_example.csv'
     pd.DataFrame({'well': [well], 'tile': [tile]}).to_csv(well_tile_list, index=None)
@@ -109,7 +115,7 @@ class QuitError(Exception):
 if __name__ == '__main__':
     commands = {
         'setup_example': setup_example,
-        'setup_figure3': setup_figure3,
+        'setup_nature_protocols': setup_nature_protocols,
     }
     try:
         fire.Fire(commands)

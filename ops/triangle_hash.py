@@ -1,3 +1,13 @@
+"""Delaunay triangle-based alignment between segmented microscopy datasets of the same sample.
+
+Helpful for aligning between datasets of the same sample with different magnification, imaging grid, etc.
+
+1. Build hashed Delaunay triangulations of both segmented datasets using `find_triangles`
+2. Perform rough alignment by finding matched tiles/sites between datasets and 
+    corresponding rotation & translation transformations of points using `multistep_alignment`.
+3. Perform fine alignment and merging of labeled segmentations using `merge_sbs_phenotype`.
+"""
+
 import numpy as np
 import pandas as pd
 from scipy.spatial import Delaunay
@@ -9,6 +19,24 @@ from . import utils
 
 
 def find_triangles(df):
+    """Turns a table of i,j coordinates (typically of nuclear centroids)
+    into a table containing a hashed Delaunay triangulation of the 
+    input points. Process each tile/site independently. The output for all
+    tiles/sites within a single well is concatenated and used as input to 
+    `multistep_alignment`.
+
+    Parameters
+    ----------
+    df : pandas DataFrame
+        Table of points with columns `i` and `j`.
+
+    Returns
+    -------
+    df_dt : pandas DataFrame
+        Table containing a hashed Delaunay triangulation, one line
+        per simplex (triangle).
+
+    """
     v, c = get_vectors(df[['i', 'j']].values)
 
     return (pd.concat([
@@ -16,8 +44,6 @@ def find_triangles(df):
         pd.DataFrame(c).rename(columns='c_{0}'.format)], axis=1)
         .assign(magnitude=lambda x: x.eval('(V_0**2 + V_1**2)**0.5'))
     )
-
-    return df_
 
 
 def nine_edge_hash(dt, i):
@@ -260,26 +286,57 @@ def parallel_process(func, args_list, n_jobs, tqdn=True):
     return Parallel(n_jobs=n_jobs)(delayed(func)(*w) for w in work)
 
 
-def merge_sbs_phenotype(df_sbs_, df_ph_, model, threshold=2):
+def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
+    """Fine alignment of one (tile,site) match found using 
+    `multistep_alignment`.
 
-    X = df_sbs_[['i', 'j']].values
-    Y = df_ph_[['i', 'j']].values
+    Parameters
+    ----------
+    df_0_ : pandas DataFrame
+        Table of coordinates to align (e.g., nuclei centroids) 
+        for one tile of dataset 0. Expects `i` and `j` columns.
+
+    df_1_ : pandas DataFrame
+        Table of coordinates to align (e.g., nuclei centroids) 
+        for one site of dataset 1 that was identified as a match
+        to the tile in df_0_ using `multistep_alignment`. Expects 
+        `i` and `j` columns.
+
+    model : sklearn.linear_model.LinearRegression
+        Linear alignment model between tile of df_0_ and site of 
+        df_1_. Produced using `build_linear_model` with the rotation 
+        and translation matrix determined in `multistep_alignment`.
+
+    threshold : float, default 2
+        Maximum euclidean distance allowed between matching points.
+
+    Returns
+    -------
+    df_merge : pandas DataFrame
+        Table of merged identities of cell labels from df_0_ and 
+        df_1_.
+    """
+
+    X = df_0_[['i', 'j']].values
+    Y = df_1_[['i', 'j']].values
     Y_pred = model.predict(X)
 
     distances = cdist(Y, Y_pred, metric='sqeuclidean')
     ix = distances.argmin(axis=1)
     filt = np.sqrt(distances.min(axis=1)) < threshold
-    columns = {'site': 'site', 'cell_ph': 'cell_ph',
-              'i': 'i_ph', 'j': 'j_ph',}
+    columns_0 = {'tile': 'tile', 'cell': 'cell_0',
+              'i': 'i_0', 'j': 'j_0',}
+    columns_1 = {'site': 'site', 'cell': 'cell_1',
+              'i': 'i_1', 'j': 'j_1',}
 
-    cols_final = ['well', 'tile', 'cell', 'i', 'j', 
-                  'site', 'cell_ph', 'i_ph', 'j_ph', 'distance'] 
-    sbs = df_sbs_.iloc[ix[filt]].reset_index(drop=True)
-    return (df_ph_
+    cols_final = ['well', 'tile', 'cell_0', 'i_0', 'j_0', 
+                  'site', 'cell_1', 'i_1', 'j_1', 'distance'] 
+    target = df_0_.iloc[ix[filt]].reset_index(drop=True).rename(columns=columns_0)
+    return (df_1_
      [filt].reset_index(drop=True)
-     [list(columns.keys())]
-     .rename(columns=columns)
-     .pipe(lambda x: pd.concat([sbs, x], axis=1))
+     [list(columns_1.keys())]
+     .rename(columns=columns_1)
+     .pipe(lambda x: pd.concat([target, x], axis=1))
      .assign(distance=np.sqrt(distances.min(axis=1))[filt])
      [cols_final]
     )
@@ -314,12 +371,62 @@ def multistep_alignment(df_0, df_1, df_info_0, df_info_1,
                         det_range=(1.125,1.186),
                         initial_sites=8, batch_size=180, 
                         tqdn=True, n_jobs=None):
-    """Provide triangles from one well only.
-    Intitial_sites can be a list of tuples with pre-determined
-    matching pairs of sites [(tile_0,site_0),...]. 5 or more initial pairs of known 
-    matching sites should be sufficient.
-    det_range: range of acceptable determinant of rotation matrix, indicative of scaling
-    between sites.
+    """Finds tiles of two different acquisitions with matching Delaunay 
+    triangulations within the same well. Cells must not have moved significantly
+    between acquisitions and segmentations approximately equivalent.
+
+    Parameters
+    ----------
+    df_0 : pandas DataFrame
+        Hashed Delaunay triangulation for all tiles of dataset 0. Produced by 
+        concatenating outputs of `find_triangles` from individual tiles of a 
+        single well. Expects a `tile` column.
+
+    df_1 : pandas DataFrame
+        Hashed Delaunay triangulation for all sites of dataset 1. Produced by 
+        concatenating outputs of `find_triangles` from individual sites of a 
+        single well. Expects a `site` column.
+
+    df_info_0 : pandas DataFrame
+        Table of global coordinates for each tile acquisition to match tiles
+        of `df_0`. Expects `tile` as index and two columns of coordinates.
+
+    df_info_1 : pandas DataFrame
+        Table of global coordinates for each site acquisition to match sites 
+        of `df_1`. Expects `site` as index and two columns of coordinates.
+
+    det_range : 2-tuple, default (1.125,1.186)
+        Range of acceptable values for the determinant of the rotation matrix 
+        when evaluating an alignment of a tile,site pair. Rotation matrix determinant
+        is a measure of the scaling between sites, should be consistent within microscope
+        acquisition settings. Calculate determinant for several known matches in a dataset 
+        to determine.
+
+    initial_sites : int or list of 2-tuples, default 8
+        If int, the number of sites to sample from df_1 for initial brute force 
+        matching of tiles to build an initial global alignment model. Brute force 
+        can be inefficient and inaccurate. If a list of 2-tuples, these are known 
+        matches of (tile,site) to initially evaluate and start building a global 
+        alignment model. 5 or more intial pairs of known matching sites should be 
+        sufficient.
+
+    batch_size : int, default 180
+        Number of (tile,site) matches to evaluate in a batch between updates of the global 
+        alignment model.
+
+    tqdn : boolean, default True
+        Displays tqdm progress bar if True.
+
+    n_jobs : int or None, default None
+        Number of parallelized jobs to deploy using joblib.
+
+    Returns
+    -------
+    df_align : pandas DataFrame
+        Table of possible (tile,site) matches with corresponding rotation and translation 
+        transformations. All tested matches are included here, should query based on `score` 
+        and `determinant` to keep only valid matches.
+
     """
 
     if n_jobs is None:
