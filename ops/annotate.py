@@ -27,8 +27,10 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
 
     The dataframe should contain data from a single image, which is loaded from
     `label_mask` if provided, or else guessed based on descriptors in the first 
-    row of `df` and `tag`. If `return_key` is true, also return dictionary from 
-    labels to values.
+    row of `df` and `tag`. If the values are non-numeric (strings, etc), label them with
+    categorical codes (casting to categorical if necessary). Codes are sequential integers 
+    starting from 1 since the background is 0. If `return_key` is true, also return dictionary 
+    from labels to values.
     """
     if df[label].duplicated().any():
         raise ValueError('duplicate rows present')
@@ -43,7 +45,7 @@ def annotate_labels(df, label, value, label_mask=None, tag='cells', outline=Fals
     if not np.issubdtype(value_dtype, np.number) or isinstance(value_dtype, pd.CategoricalDtype):
         label_to_value = label_to_value.astype('category')
         value_dtype = pd.CategoricalDtype
-        warnings.warn(f'converting value column {value} to categorical')
+        # warnings.warn(f'converting value column {value} to categorical')
 
     if value_dtype == pd.CategoricalDtype:
         label_key = {i + 1: v for i,v in enumerate(label_to_value.cat.categories)}
