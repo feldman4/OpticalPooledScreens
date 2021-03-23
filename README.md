@@ -34,14 +34,13 @@ Once installed, activate the virtual environment from the project directory:
 source venv/bin/activate
 ```
 
-To run the analysis pipeline with an image from the [original publication](https://doi.org/10.1016/j.cell.2019.09.016), first download and install the [IBM Aspera Command Line Interface](https://www.ibm.com/support/knowledgecenter/SS4F2E_3.9/navigation/cli_welcome.html) (includes `ascp`) for interacting with the Cell-IDR databse. Then, set up an example directory:
+To run the analysis pipeline with images from the [original publication](https://doi.org/10.1016/j.cell.2019.09.016), first download and install the [IBM Aspera Command Line Interface](https://www.ibm.com/support/knowledgecenter/SS4F2E_3.9/navigation/cli_welcome.html) (includes `ascp`) for interaction with the Cell-IDR databse. Then, set up an example directory:
 
 ```bash
 python -m ops.paper.cell_idr setup_example example --ascp=<path/to/ascp/executable>
 ```
 
 Run the pipeline on the example data using [snakemake](https://snakemake.readthedocs.io/en/stable/) (after activating the virtual environment):
-
 
 ```bash
 cd example
