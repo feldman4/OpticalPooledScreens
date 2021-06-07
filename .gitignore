@@ -7,3 +7,5 @@ __pycache__/
 
 venv/
 ops_lasagna.egg-info/
+
+notebooks/

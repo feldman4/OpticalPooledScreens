@@ -34,6 +34,41 @@ def format_ascp_command(ascp, pairlist, local='.'):
     return f'{ascp} {ascp_opts} {pair_opts} {local}'
 
 
+def get_cell_idr(directory, experiment='C', well='all', tile='all', ascp=ascp_guess):
+    """Download data from Cell IDR."""
+    if not shutil.which(ascp):
+        ascp = shutil.which('ascp')
+        if ascp is None:
+            print(f'Error: Aspera ascp executable not found at {ascp}')
+            raise QuitError
+
+    # select our example
+    select_tile = f'idr_name == "experiment{experiment}"'
+    if well != 'all':
+        select_tile += ' & well == @well'
+    if tile != 'all': 
+        select_tile += ' & tile == @tile'
+
+    select_image_tags = 'tag == ["phenotype", "sbs"]'    
+    df_idr = (pd.read_csv(cell_idr_files, low_memory=False)
+     .query(select_tile)
+     .query(select_image_tags)
+    )
+
+    pairlist = f'{directory}/ascp_download_list.txt'
+    write_pairlist(df_idr, pairlist)
+    command = format_ascp_command(ascp, pairlist, local=directory)
+
+    print(f'Downloading {len(df_idr)} files from Cell-IDR with command: {command}')
+    try:
+        subprocess.check_call(command, shell=True)
+    except subprocess.CalledProcessError as e:
+        print(f'Error in downloading files using {ascp}. This can be a user network issue. '
+            'Try a secure network with better connectivity.'
+            )
+        raise QuitError
+
+
 def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
     """Create a fresh analysis directory for Cell IDR experiment C (A549 cells, CROPseq library, 
     p65 antibody).
@@ -60,37 +95,7 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
         os.symlink(f'{package_dir}/resources/{here}', f'{directory}/{there}')
         print(f'Linked {there}')
 
-    if not shutil.which(ascp):
-        ascp = shutil.which('ascp')
-        if ascp is None:
-            print(f'Error: Aspera ascp executable not found at {ascp}')
-            raise QuitError
-
-    # select our example
-    select_tile = 'idr_name == "experimentC"'
-    if well != 'all':
-        select_tile += ' & well == @well'
-    if tile != 'all': 
-        select_tile += ' & tile == @tile'
-
-    select_image_tags = 'tag == ["phenotype", "sbs"]'    
-    df_idr = (pd.read_csv(cell_idr_files, low_memory=False)
-     .query(select_tile)
-     .query(select_image_tags)
-    )
-
-    pairlist = f'{directory}/ascp_download_list.txt'
-    write_pairlist(df_idr, pairlist)
-    command = format_ascp_command(ascp, pairlist, local=directory)
-
-    print(f'Downloading {len(df_idr)} files from Cell-IDR with command: {command}')
-    try:
-        subprocess.check_call(command, shell=True)
-    except subprocess.CalledProcessError as e:
-        print(f'Error in downloading files using {ascp}. This can be a user network issue. '
-            'Try a secure network with better connectivity.'
-            )
-        raise QuitError
+    get_cell_idr(directory, well=well, tile=tile, ascp=ascp)
 
     well_tile_list = f'{directory}/experimentC/well_tile_list_example.csv'
     pd.DataFrame({'well': [well], 'tile': [tile]}).to_csv(well_tile_list, index=None)
@@ -114,6 +119,7 @@ class QuitError(Exception):
 
 if __name__ == '__main__':
     commands = {
+        'get_cell_idr': get_cell_idr,
         'setup_example': setup_example,
         'setup_nature_protocols': setup_nature_protocols,
     }
