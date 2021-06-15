@@ -10,13 +10,14 @@ warnings.filterwarnings('ignore', message='precision loss when converting')
 
 import numpy as np
 import pandas as pd
-import skimage
+import skimage.io
 import skimage.morphology
 import ops.annotate
 import ops.features
 import ops.process
 import ops.io
 import ops.in_situ
+import ops.utils
 from .process import Align
 
 
@@ -111,7 +112,8 @@ class Snake():
         return aligned
 
     @staticmethod
-    def _align_by_DAPI(data_1, data_2, channel_index=0, upsample_factor=2):
+    def _align_by_DAPI(data_1, data_2, channel_index=0, upsample_factor=2, 
+                       autoscale=True):
         """Align the second image to the first, using the channel at position 
         `channel_index`. The first channel is usually DAPI.
 
@@ -131,14 +133,24 @@ class Snake():
             Subpixel alignment is done if `upsample_factor` is greater than one (can be slow).
             Parameter passed to skimage.feature.register_translation.
 
+        autoscale : bool, default True
+            Automatically scale `data_2` prior to alignment. Offsets are applied to 
+            the unscaled image so no resolution is lost.
+
         Returns
         -------
 
         aligned : numpy array
             `data_2` with calculated offsets applied to all channels.
         """
-        images = data_1[channel_index], data_2[channel_index]
+        images = [data_1[channel_index], data_2[channel_index]]
+        if autoscale:
+            images[1] = ops.utils.match_size(images[1], images[0])
+
         _, offset = ops.process.Align.calculate_offsets(images, upsample_factor=upsample_factor)
+        if autoscale:
+            offset *= data_2.shape[-1] / data_1.shape[-1]
+
         offsets = [offset] * len(data_2)
         aligned = ops.process.Align.apply_offsets(data_2, offsets)
         return aligned
@@ -257,6 +269,52 @@ class Snake():
             cells = nuclei
 
         return cells
+
+    @staticmethod
+    def _segment_cell_2019(data, nuclei_threshold, nuclei_area_min,
+                           nuclei_area_max, cell_threshold):
+        """Combine morphological segmentation of nuclei and cells to have the same 
+        interface as _segment_cellpose.
+        """
+        nuclei = Snake._segment_nuclei(data, nuclei_threshold, nuclei_area_min, nuclei_area_max)
+        cells = Snake._segment_cells(data, nuclei, cell_threshold)
+        return nuclei, cells
+
+    @staticmethod
+    def _segment_cellpose(data, dapi_index, cyto_index, diameter):
+        from ops.cellpose import segment_cellpose, segment_cellpose_rgb
+
+        # return segment_cellpose(data[dapi_index], data[cyto_index],
+        #                 nuclei_diameter=diameter, cell_diameter=diameter)
+
+        rgb = Snake._prepare_cellpose(data, dapi_index, cyto_index)
+        return segment_cellpose_rgb(rgb, diameter), rgb
+        
+    @staticmethod
+    def _prepare_cellpose(data, dapi_index, cyto_index, logscale=True):
+        """Export three-channel RGB image for use with cellpose GUI (e.g., to select
+        cell diameter). Nuclei are exported to blue (cellpose channel=3), cytoplasm to
+        green (cellpose channel=2).
+
+        Unfortunately the cellpose GUI sometimes has issues loading tif files, so this 
+        exports to PNG, which has limited dynamic range. Cellpose performs internal 
+        scaling based on 10th and 90th percentiles of the input.
+        """
+        from ops.cellpose import image_log_scale
+        from skimage import img_as_ubyte
+        dapi = data[dapi_index]
+        cyto = data[cyto_index]
+        blank = np.zeros_like(dapi)
+        if logscale:
+            cyto = image_log_scale(cyto)
+            cyto /= cyto.max() # for ubyte conversion
+
+        dapi_upper = np.percentile(dapi, 99.5)
+        dapi = dapi / dapi_upper
+        dapi[dapi > 1] = 1
+        red, green, blue = img_as_ubyte(blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
+        return np.array([red, green, blue]).transpose([1, 2, 0])
+
 
     # IN SITU
 
@@ -556,6 +614,26 @@ class Snake():
         annotated[:, channels] = base_labels
         return annotated
 
+
+    @staticmethod
+    def _annotate_segment(data, nuclei, cells):
+        """Show outlines of nuclei and cells on sequencing data.
+        """
+        from ops.annotate import outline_mask
+        if data.ndim == 3:
+            data = data[None]
+        cycles, channels, height, width = data.shape
+        annotated = np.zeros((cycles, channels + 1, height, width), 
+                            dtype=np.uint16)
+
+        mask = (  (outline_mask(nuclei, direction='inner') > 0)
+                + (outline_mask(cells, direction='inner') > 0))
+        annotated[:, :channels] = data
+        annotated[:, channels] = mask
+
+        return np.squeeze(annotated)
+        
+
     @staticmethod
     def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles,
                             shape=(1024, 1024)):
@@ -658,10 +736,17 @@ class Snake():
         return Snake._extract_features(data, labels, wildcards, features)
 
     @staticmethod
-    def _extract_named_cell_nucleus_features(data, cells, nuclei, cell_features, nucleus_features,
-                                             wildcards, join='inner'):
+    def _extract_named_cell_nucleus_features(
+            data, cells, nuclei, cell_features, nucleus_features, wildcards, 
+            autoscale=True, join='inner'):
         """Extract named features for cell and nucleus labels and join the results.
+
+        :param autoscale: scale the cell and nuclei mask dimensions to the data
         """
+        if autoscale:
+            cells = ops.utils.match_size(cells, data[0])
+            nuclei = ops.utils.match_size(nuclei, data[0])
+
         assert 'label' in cell_features and 'label' in nucleus_features
         df_phenotype = pd.concat([
             Snake._extract_named_features(data, cells, cell_features, {})
@@ -1025,6 +1110,8 @@ def save_output(filename, data, **kwargs):
         return save_pkl(filename, data)
     elif filename.endswith('.csv'):
         return save_csv(filename, data)
+    elif filename.endswith('.png'):
+        return save_png(filename, data)
     else:
         raise ValueError('not a recognized filetype: ' + f)
 
@@ -1060,6 +1147,10 @@ def save_tif(filename, data_, **kwargs):
     # overwrite with `data_` 
     kwargs['data'] = data_
     ops.io.save_stack(filename, **kwargs)
+
+
+def save_png(filename, data_):
+    skimage.io.imsave(filename, data_)
 
 
 def restrict_kwargs(kwargs, f):
@@ -1172,6 +1263,7 @@ def input_files(suffix, cycles, directory='input', magnification='10X'):
     pattern = (f'{directory}/{magnification}_{{cycle}}/'
                f'{magnification}_{{cycle}}_{{{{well}}}}_Tile-{{{{tile}}}}.{suffix}')
     return expand(pattern, cycle=cycles)
+
 
 def initialize_paramsearch(config):
     from snakemake.utils import Paramspace
