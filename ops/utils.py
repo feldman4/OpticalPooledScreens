@@ -650,3 +650,10 @@ def regionprops(labeled, intensity_image):
         region.intensity_image_full = intensity_image[..., b[0]:b[2], b[1]:b[3]]
 
     return regions
+
+def match_size(image, target, order=None):
+    """Resize image to target without changing data range or type.
+    """
+    from skimage.transform import resize
+    return (resize(image, target.shape, preserve_range=True, order=order)
+            .astype(image.dtype))
