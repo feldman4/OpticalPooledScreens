@@ -79,6 +79,7 @@ rule align_phenotype:
         processed_output('phenotype_aligned.tif')
     run:
         Snake.align_by_DAPI(output=output, data_1=input[0], data_2=input[1],
+            autoscale=config['AUTOSCALE_PHENOTYPE'],
             display_ranges=DISPLAY_RANGES, luts=LUTS)
 
 
@@ -116,32 +117,47 @@ rule max_filter:
     output:
         processed_output('maxed.tif')
     run:
-        Snake.max_filter(output=output, data=input[0], width=3,
+        Snake.max_filter(output=output, data=input[0], width=config['MAXED_WIDTH'],
             remove_index=0, display_ranges=DISPLAY_RANGES[1:], luts=LUTS[1:])
-
-rule segment_nuclei:
+rule segment:
     input:
         input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
-        # not used, just here to change the order of rule execution
-        processed_input('log.tif'),
     output:
-        processed_output('nuclei.tif')
-    run:
-        Snake.segment_nuclei(output=output, data=input[0],
-            threshold=config['THRESHOLD_DAPI'],
-            area_min=config['NUCLEUS_AREA'][0],
-            area_max=config['NUCLEUS_AREA'][1])
-
-rule segment_cells:
-    input:
-        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
-        processed_input('nuclei.tif'),
-    output:
+        processed_output('nuclei.tif'),
         processed_output('cells.tif')
     run:
-        Snake.segment_cells(output=output,
-            data=input[0], nuclei=input[1], threshold=config['THRESHOLD_CELL'])
+        if config['SEGMENT_METHOD'] == 'cell_2019':
+            Snake.segment_cell_2019(
+                output=output, 
+                data=input[0],
+                nuclei_threshold=config['THRESHOLD_DAPI'],
+                nuclei_area_min=config['NUCLEUS_AREA'][0],
+                nuclei_area_max=config['NUCLEUS_AREA'][1],
+                cell_threshold=config['THRESHOLD_CELL'],
+            )
+        elif config['SEGMENT_METHOD'] == 'cellpose':
+            Snake.segment_cellpose(
+                output=output, 
+                data=input[0], 
+                dapi_index=0, 
+                cyto_index=config['CELLPOSE_CYTO_CHANNEL'],
+                diameter=config['CELLPOSE_DIAMETER'],
+                )
+        else:
+            error = ('config entry SEGMENT_METHOD must be "cell_2019" or "cellpose", '
+                     f'not {config["SEGMENT_METHOD"]}')
+            raise ValueError(error)
 
+rule prepare_cellpose:
+    input:
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
+    output:
+        processed_output('cellpose_input.png')
+    run:
+        luts = ops.io.RED, ops.io.GREEN, ops.io.BLUE
+        Snake.prepare_cellpose(output=output, data=input[0], dapi_index=0, 
+         cyto_index=config['CELLPOSE_CYTO_CHANNEL'], luts=luts)
+        
 rule extract_bases:
     input:
         processed_input('peaks.tif'),
@@ -183,6 +199,7 @@ rule extract_phenotypes:
             cells=input[1], nuclei=input[2],
             nucleus_features=config['NUCLEUS_PHENOTYPE_FEATURES'],
             cell_features=config['CELL_PHENOTYPE_FEATURES'],
+            autoscale=config['AUTOSCALE_PHENOTYPE'],
             wildcards=wildcards,
             )
 
@@ -210,6 +227,20 @@ rule annotate_SBS:
         Snake.annotate_SBS(output=output, log=input[0], df_reads=input[1],
             display_ranges=display_ranges, luts=luts, compress=1)
 
+rule annotate_segment:
+    input:
+        processed_input('aligned.tif'),
+        processed_input('nuclei.tif'),
+        processed_input('cells.tif'),
+    output:
+        processed_output('annotate_segment.tif'),
+    run:
+        luts = LUTS + [ops.io.GRAY, ops.io.GRAY]
+        # display_ranges = [(a/4, b/4) for a,b in DISPLAY_RANGES] + [[0, 3], [0, 3]]
+        Snake.annotate_segment(output=output, data=input[0], nuclei=input[1],
+            cells=input[2], luts=luts, compress=1)
+
+
 rule annotate_SBS_extra:
     input:
         processed_input('log.tif'),
@@ -227,6 +258,7 @@ rule annotate_SBS_extra:
             df_reads=input[2], barcode_table=config['BARCODE_TABLE'],
             sbs_cycles=config['SBS_CYCLES'],
             display_ranges=display_ranges[1:], luts=luts[1:], compress=1)
+
 
 if config['MODE'] == 'paramsearch_segmentation':
     rule segment_nuclei_paramsearch:
