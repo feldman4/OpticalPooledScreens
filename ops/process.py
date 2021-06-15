@@ -95,6 +95,7 @@ def find_peaks(data, n=5):
     
     return peaks
 
+
 @utils.applyIJ
 def log_ndi(data, sigma=1, *args, **kwargs):
     """Apply laplacian of gaussian to each image in a stack of shape
@@ -110,6 +111,7 @@ def log_ndi(data, sigma=1, *args, **kwargs):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return skimage.img_as_uint(arr_)
+
 
 class Align:
     """Alignment redux, used by snakemake.
@@ -292,7 +294,6 @@ def apply_watershed(img, smooth=4):
     markers = ndi.label(local_max)[0]
     result = skimage.segmentation.watershed(-distance, markers, mask=img)
     return result.astype(np.uint16)
-
 
 
 def alpha_blend(arr, positions, clip=True, edge=0.95, edge_width=0.02, subpixel=False):
