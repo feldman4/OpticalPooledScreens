@@ -189,7 +189,7 @@ rule call_cells:
 
 rule extract_phenotypes:
     input:
-        input_files(config['PHENOTYPE_INPUT_TAG'], config['PHENOTYPE_CYCLE']),
+        processed_input('phenotype_aligned.tif'),
         processed_input('cells.tif'),
         processed_input('nuclei.tif'),
     output:
