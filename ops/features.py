@@ -1,4 +1,6 @@
 import numpy as np
+import re
+from functools import partial
 from . import utils
 
 # FUNCTIONS
@@ -88,15 +90,67 @@ all_features = [
     viewRNA
     ]
 
+n1_features = {
+    'mean': lambda c, r: masked(r, c).mean(),
+    'median': lambda c, r: np.median(masked(r, c)),
+    'max': lambda c, r: masked(r, c).max(),
+    'min': lambda c, r: masked(r, c).min(),
+}
+
+n2_features = {
+    'corr': lambda c1, c2, r: correlate_channels(r, c1, c2),
+}
+
 
 def validate_features():
+    """Check for duplicate definitions.
+    """
     names = sum(map(list, all_features), [])
     assert len(names) == len(set(names))
 
+
+def indexed_feature(name):
+    """Match a parameterized feature, e.g., c0_max => max of channel 0.
+    """
+    n1_pat = 'c(\d+)_(.*)'
+    match = re.findall(n1_pat, name)
+    if len(match) == 1:
+        c, key = match[0]
+        if key in n1_features:
+            return partial(n1_features[key], int(c))
+    
+    n2_pat = 'c(\d+)c(\d+)_(.*)'
+    match = re.findall(n2_pat, name)
+    if len(match) == 1:
+        c1, c2, key = match[0]
+        if key in n2_features:
+            return partial(n2_features[key], int(c1), int(c2))
+
+    # not recognized
+    return
+
+
 def make_feature_dict(feature_names):
+    """Expand to allow (1) parameterized names (e.g., c0_sum, c0c1_corr) and 
+    (2) a list of [name, label] (e.g., (c0_sum, dapi_sum)).
+    """
+    defined_features = {}
+    [defined_features.update(d) for d in all_features]
+
     features = {}
-    [features.update(d) for d in all_features]
-    return {n: features[n] for n in feature_names}
+    for name in feature_names:
+        if isinstance(name, list):
+            name, label = name
+        else:
+            label = name
+        try:
+            features[label] = defined_features[name]
+        except KeyError:
+            features[label] = indexed_feature(name)
+            if features[label] is None:
+                raise ValueError(f'feature {label} not recognized')
+
+    return features
 
 validate_features()
 
