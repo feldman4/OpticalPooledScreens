@@ -28,10 +28,14 @@ PHENOTYPE_INPUT_TAG: 'phenotype.tif'
 PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 
 ### ANALYSIS PARAMETERS
-NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels, for paramsearch_segmentation mode can be list of [min,max] lists to test
-THRESHOLD_DAPI: 200  # threshold for segmenting nuclei, for paramsearch_segmentation mode can be list of thresholds to test
-THRESHOLD_CELL: 600  # threshold for segmenting cells, for paramsearch_segmentation mode can be list of thresholds to test
-THRESHOLD_READS: [10,50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000]  # threshold for detecting reads, for paramsearch_read-calling mode can be list of thresholds to test
+SEGMENT_METHOD: 'cell_2019' # either 'cell_2019' or 'cellpose'
+# CELLPOSE_CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing; not used when SEGMENT_METHOD='cell_2019'
+# CELLPOSE_DIAMETER: 20 # not used when SEGMENT_METHOD='cell_2019'
+NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels, for paramsearch_segmentation mode can be list of [min,max] lists to test; not used when SEGMENT_METHOD='cellpose'
+THRESHOLD_DAPI: 200  # threshold for segmenting nuclei, for paramsearch_segmentation mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
+THRESHOLD_CELL: 600  # threshold for segmenting cells, for paramsearch_segmentation mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
+THRESHOLD_READS: [10,50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000]  # threshold for detecting reads, for paramsearch_read-calling mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
+MAXED_WIDTH: 3
 NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
     'i', 'j', 'area',
