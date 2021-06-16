@@ -288,7 +288,8 @@ class Snake():
         #                 nuclei_diameter=diameter, cell_diameter=diameter)
 
         rgb = Snake._prepare_cellpose(data, dapi_index, cyto_index)
-        return segment_cellpose_rgb(rgb, diameter), rgb
+        nuclei, cells = segment_cellpose_rgb(rgb, diameter)
+        return nuclei, cells
         
     @staticmethod
     def _prepare_cellpose(data, dapi_index, cyto_index, logscale=True):
