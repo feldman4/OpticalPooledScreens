@@ -1,8 +1,10 @@
-PROCESS_DIRECTORY: 'process_rgb'
+PROCESS_DIRECTORY: 'process_rgb_erode'
 REQUESTED_FILES: []
 REQUESTED_TAGS: [
   'annotate_segment.tif',
   'cellpose_input.png',
+  # 'cells.csv',
+  # 'phenotype.csv',
 ]
 # discarded after processing to save space
 TEMP_TAGS: ['maxed.tif', 'peaks.tif', 'std.tif']
@@ -12,7 +14,7 @@ INPUT_DIRECTORY: 'input'
 WELL_TILE_LIST: 'tiles_short.csv'
 
 MAGNIFICATION: '10X'
-SBS_CYCLES: [1, 2] # cycles to include for analysis
+SBS_CYCLES: [1, 2, 3, 4] # cycles to include for analysis
 SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
 PHENOTYPE_CYCLE: 'c0-DAPI-HA'
 BARCODE_TABLE: 'barcodes.csv'
@@ -26,30 +28,26 @@ NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
     'i', 'j', 'area', 
     ['c0_mean', 'dapi_mean'],
-    ['c1_mean', 'gfp_mean'],
-    ['c2_mean', 'rfp_mean'],
+    ['c1_mean', 'ha_mean'],
     ['c0_median', 'dapi_median'],
-    ['c1_median', 'gfp_median'],
-    ['c2_median', 'rfp_median'],
+    ['c1_median', 'ha_median'],
     ['c0_max', 'dapi_max'],
-    ['c1_max', 'gfp_max'],
-    ['c2_max', 'rfp_max'],
+    ['c1_max', 'ha_max'],
     ['c0_min', 'dapi_min'],
-    ['c1_min', 'gfp_min'],
-    ['c2_min', 'rfp_min'],
-    ['c0c1_corr', 'dapi_gfp_corr'],
-    ['c0c2_corr', 'dapi_rfp_corr'],
-    ['c1c2_corr', 'gfp_rfp_corr'],
+    ['c1_min', 'ha_min'],
+    ['c0c1_corr', 'dapi_ha_corr'],
   ]
 CELL_PHENOTYPE_FEATURES: [
   'label', 'area',
-    ['c1_mean', 'gfp_mean'],
-    ['c2_mean', 'rfp_mean'],
-    ['c1_median', 'gfp_median'],
-    ['c2_median', 'rfp_median'],
-    ['c1_max', 'gfp_max'],
-    ['c2_max', 'rfp_max'],
-    ['c1c2_corr', 'gfp_rfp_corr'],
+    ['c0_mean', 'dapi_mean'],
+    ['c1_mean', 'ha_mean'],
+    ['c0_median', 'dapi_median'],
+    ['c1_median', 'ha_median'],
+    ['c0_max', 'dapi_max'],
+    ['c1_max', 'ha_max'],
+    ['c0_min', 'dapi_min'],
+    ['c1_min', 'ha_min'],
+    ['c0c1_corr', 'dapi_ha_corr'],
 ]
 
 ### DISPLAY OPTIONS
@@ -76,5 +74,5 @@ MAXED_WIDTH: 5
 
 SEGMENT_METHOD: 'cellpose'
 CELLPOSE_CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing
-CELLPOSE_DIAMETER: 20
+CELLPOSE_DIAMETER: 35
 AUTOSCALE_PHENOTYPE: True
