@@ -119,12 +119,13 @@ rule max_filter:
     run:
         Snake.max_filter(output=output, data=input[0], width=config['MAXED_WIDTH'],
             remove_index=0, display_ranges=DISPLAY_RANGES[1:], luts=LUTS[1:])
+
 rule segment:
     input:
         input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
     output:
         processed_output('nuclei.tif'),
-        processed_output('cells.tif')
+        processed_output('cells.tif'),
     run:
         if config['SEGMENT_METHOD'] == 'cell_2019':
             Snake.segment_cell_2019(
@@ -157,7 +158,7 @@ rule prepare_cellpose:
         luts = ops.io.RED, ops.io.GREEN, ops.io.BLUE
         Snake.prepare_cellpose(output=output, data=input[0], dapi_index=0, 
          cyto_index=config['CELLPOSE_CYTO_CHANNEL'], luts=luts)
-        
+
 rule extract_bases:
     input:
         processed_input('peaks.tif'),
