@@ -80,7 +80,7 @@ def image_log_scale(data, bottom_percentile=10, floor_threshold=50):
     return scaled - floor
 
 
-def reconcile_nuclei_cells(nuclei, cells, erode_nuclei=2):
+def reconcile_nuclei_cells(nuclei, cells, erode_nuclei=5):
     """Only keep nucleus, cell pairs that exclusively overlap each other. 
     Reindex both integer masks from 1.
     """
@@ -95,9 +95,14 @@ def reconcile_nuclei_cells(nuclei, cells, erode_nuclei=2):
                 d[r.label] = labels[0]
         return d
 
+    
+
+    nuclei_eroded = center_pixels(nuclei)
+    # erode, then set any changed pixel to background (separate touching regions)
     # selem = np.ones((erode_nuclei, erode_nuclei))
-    # nuclei_eroded = erosion(nuclei, selem)
-    nuclei_eroded = nuclei
+    # changed = erosion(nuclei, selem)
+    # nuclei_eroded = nuclei.copy()
+    # nuclei_eroded[nuclei != changed] = 0
 
     nucleus_map = get_unique_label_map(regionprops(nuclei_eroded, intensity_image=cells))
     cell_map    = get_unique_label_map(regionprops(cells,  intensity_image=nuclei_eroded))
@@ -117,3 +122,11 @@ def reconcile_nuclei_cells(nuclei, cells, erode_nuclei=2):
     cells  = relabel_array(cells,  {label: i + 1 for i, label in enumerate(keep_cells)})
     nuclei, cells = nuclei.astype(int), cells.astype(int)
     return nuclei, cells
+
+
+def center_pixels(label_image):
+    ultimate = np.zeros_like(label_image)
+    for r in regionprops(label_image):
+        i, j = np.array(r.bbox).reshape(2,2).mean(axis=0).astype(int)
+        ultimate[i, j] = r.label
+    return ultimate
