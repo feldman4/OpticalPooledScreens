@@ -1,13 +1,17 @@
-PROCESS_DIRECTORY: 'process_rgb_erode'
-REQUESTED_FILES: []
+PROCESS_DIRECTORY: 'process'
+REQUESTED_FILES: ['combined.csv']
 REQUESTED_TAGS: [
   'annotate_segment.tif',
   'cellpose_input.png',
-  # 'cells.csv',
-  # 'phenotype.csv',
+  'phenotype.csv',
+  'bases.csv',
+  'cells.csv',
+  'reads.csv',
+  'peaks.tif',
+  'annotate_SBS.tif',
 ]
 # discarded after processing to save space
-TEMP_TAGS: ['maxed.tif', 'peaks.tif', 'std.tif']
+TEMP_TAGS: ['maxed.tif', 'std.tif']
 
 ### INPUT TO ANALYSIS
 INPUT_DIRECTORY: 'input'
@@ -20,10 +24,7 @@ PHENOTYPE_CYCLE: 'c0-DAPI-HA'
 BARCODE_TABLE: 'barcodes.csv'
 
 ### ANALYSIS PARAMETERS
-NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
-THRESHOLD_DAPI: 1000  # threshold for segmenting nuclei
-THRESHOLD_CELL: 600  # threshold for segmenting cells
-THRESHOLD_READS: 150  # threshold for detecting reads
+THRESHOLD_READS: 50  # threshold for detecting reads
 NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
     'i', 'j', 'area', 
@@ -72,7 +73,14 @@ SBS_INPUT_TAG: 'tif'
 PHENOTYPE_INPUT_TAG: 'tif'
 MAXED_WIDTH: 5
 
-SEGMENT_METHOD: 'cellpose'
-CELLPOSE_CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing
-CELLPOSE_DIAMETER: 35
+SEGMENT_METHOD: 'cellpose' # either "cell_2019" or "cellpose"
+# parameters for cell_2019
+NUCLEUS_AREA: [40, 400] # min and max nucleus area in pixels
+THRESHOLD_DAPI: 1000  # threshold for segmenting nuclei
+THRESHOLD_CELL: 600  # threshold for segmenting cells
+# parameters for cellpose
+CELLPOSE: 
+    CYTO_CYCLE: -1 # -1 is the last cycle
+    CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing
+    DIAMETER: 35
 AUTOSCALE_PHENOTYPE: True
