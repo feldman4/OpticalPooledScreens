@@ -61,9 +61,6 @@ class PanelA:
     def load_combined():
         """Cluster IDs are only unique within a specific (well, tile).
         """
-        combined_csv = ('/home/dfeldman/misc/NatureProtocols/'
-                        'experimentC/process_fig4_all/combined.csv')
-
         return (pd.read_csv(combined_csv)
          .pipe(add_global_xy, '6w', (25, 25), ij=('i_nucleus', 'j_nucleus'))
          .groupby(['well', 'tile'])
