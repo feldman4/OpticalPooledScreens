@@ -107,7 +107,7 @@ rule find_peaks:
     output:
         processed_output('peaks.tif')
     run:
-        Snake.find_peaks(output=output, data=input[0])
+        Snake.find_peaks(output=output, data=input[0], compress=1)
 
 rule max_filter:
     """Dilates sequencing channels to compensate for single-pixel alignment error.
@@ -122,7 +122,7 @@ rule max_filter:
 
 rule segment:
     input:
-        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
+        processed_input('aligned.tif'),
     output:
         processed_output('nuclei.tif'),
         processed_output('cells.tif'),
@@ -137,12 +137,15 @@ rule segment:
                 cell_threshold=config['THRESHOLD_CELL'],
             )
         elif config['SEGMENT_METHOD'] == 'cellpose':
+            # last cycle
+            cycle = config['CELLPOSE']['CYTO_CYCLE']
+            data = ops.io.read_stack(input[0])[cycle]
             Snake.segment_cellpose(
                 output=output, 
-                data=input[0], 
+                data=data, 
                 dapi_index=0, 
-                cyto_index=config['CELLPOSE_CYTO_CHANNEL'],
-                diameter=config['CELLPOSE_DIAMETER'],
+                cyto_index=config['CELLPOSE']['CYTO_CHANNEL'],
+                diameter=config['CELLPOSE']['DIAMETER'],
                 )
         else:
             error = ('config entry SEGMENT_METHOD must be "cell_2019" or "cellpose", '
@@ -151,13 +154,16 @@ rule segment:
 
 rule prepare_cellpose:
     input:
-        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
+        processed_input('aligned.tif'),
     output:
         processed_output('cellpose_input.png')
     run:
+        cycle = config['CELLPOSE_CYTO_INDEX']['CYCLE']
+        channel = config['CELLPOSE_CYTO_INDEX']['CHANNEL']
+        data = ops.io.read_stack(input[0])[cycle]
         luts = ops.io.RED, ops.io.GREEN, ops.io.BLUE
-        Snake.prepare_cellpose(output=output, data=input[0], dapi_index=0, 
-         cyto_index=config['CELLPOSE_CYTO_CHANNEL'], luts=luts)
+        Snake.prepare_cellpose(output=output, data=data, dapi_index=0, 
+         cyto_index=channel, luts=luts)
 
 rule extract_bases:
     input:
@@ -239,7 +245,7 @@ rule annotate_segment:
         luts = LUTS + [ops.io.GRAY, ops.io.GRAY]
         # display_ranges = [(a/4, b/4) for a,b in DISPLAY_RANGES] + [[0, 3], [0, 3]]
         Snake.annotate_segment(output=output, data=input[0], nuclei=input[1],
-            cells=input[2], luts=luts, compress=1)
+            cells=input[2], luts=luts, compress=1, display_ranges=DISPLAY_RANGES + [[0, 1]])
 
 
 rule annotate_SBS_extra:
