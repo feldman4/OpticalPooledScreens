@@ -68,10 +68,14 @@ def segment_cellpose_rgb(rgb, diameter, gpu=False,
     return nuclei, cells
 
 
-def image_log_scale(data, bottom_percentile=10, floor_threshold=50):
+def image_log_scale(data, bottom_percentile=10, floor_threshold=50, ignore_zero=True):
     import numpy as np
     data = data.astype(float)
-    bottom = np.percentile(data, bottom_percentile)
+    if ignore_zero:
+        data_perc = data[data > 0]
+    else:
+        data_perc = data
+    bottom = np.percentile(data_perc, bottom_percentile)
     data[data < bottom] = bottom
     scaled = np.log10(data - bottom + 1)
     # cut out the noisy bits
