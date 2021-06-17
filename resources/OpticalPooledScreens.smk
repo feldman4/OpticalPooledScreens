@@ -158,8 +158,8 @@ rule prepare_cellpose:
     output:
         processed_output('cellpose_input.png')
     run:
-        cycle = config['CELLPOSE_CYTO_INDEX']['CYCLE']
-        channel = config['CELLPOSE_CYTO_INDEX']['CHANNEL']
+        cycle = config['CELLPOSE']['CYTO_CYCLE']
+        channel = config['CELLPOSE']['CYTO_CHANNEL']
         data = ops.io.read_stack(input[0])[cycle]
         luts = ops.io.RED, ops.io.GREEN, ops.io.BLUE
         Snake.prepare_cellpose(output=output, data=data, dapi_index=0, 
@@ -236,7 +236,7 @@ rule annotate_SBS:
 
 rule annotate_segment:
     input:
-        processed_input('aligned.tif'),
+        input_files(config['SBS_INPUT_TAG'], SBS_CYCLES[0]),
         processed_input('nuclei.tif'),
         processed_input('cells.tif'),
     output:
