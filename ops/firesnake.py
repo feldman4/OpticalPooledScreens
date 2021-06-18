@@ -276,7 +276,7 @@ class Snake():
         """Combine morphological segmentation of nuclei and cells to have the same 
         interface as _segment_cellpose.
         """
-        nuclei = Snake._segment_nuclei(data, nuclei_threshold, nuclei_area_min, nuclei_area_max)
+        nuclei = Snake._segment_nuclei(data[0], nuclei_threshold, nuclei_area_min, nuclei_area_max)
         cells = Snake._segment_cells(data, nuclei, cell_threshold)
         return nuclei, cells
 
