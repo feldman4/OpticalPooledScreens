@@ -11,6 +11,7 @@ import ops.constants
 from .external.tifffile_new import imread
 # currently needed to save ImageJ-compatible hyperstacks
 from .external.tifffile_old import imsave
+from .paper.cell_idr import QuitError
 
 imagej_description = ''.join(['ImageJ=1.49v\nimages=%d\nchannels=%d\nslices=%d',
                               '\nframes=%d\nhyperstack=true\nmode=composite',
@@ -207,8 +208,10 @@ def format_input(input_table, n_jobs=1, channel_order=None, **kwargs):
         processing.
 
     """
-    if input_table.endswith(('xlsx','xls')):
-        df = pd.read_excel(input_table).drop_duplicates()
+    if input_table.endswith('xlsx'):
+        df = pd.read_excel(input_table,engine='openpyxl').drop_duplicates()
+    elif input_table.endswith('xls'):
+        df = pd.read_excel(input_table,engine='xlrd').drop_duplicates()
     else:
         df = pd.read_csv(input_table).drop_duplicates()
 
