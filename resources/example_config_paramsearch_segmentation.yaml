@@ -4,19 +4,21 @@ MODE: 'paramsearch_segmentation' # either 'process', 'paramsearch_segmentation',
                 # THRESHOLD_CELL ('paramsearch_segmentation'), or of THRESHOLD_READS ('paramsearch_read-calling'). Segmentation
                 # parameters should be chosen either manually or by this parameter search prior to running 'paramsearch_read-calling'.
 REQUESTED_FILES: ['combined.csv'] # ignored in paramsearch modes
+# final outputs
 REQUESTED_TAGS: [ # ignored in paramsearch modes
-  'phenotype_aligned.tif',
+  # 'cellpose_input.png', # RGB image used as input CellPose model, useful for running CellPose diameter calibration
   'cells.csv',
   'phenotype.csv',
-  'annotate_SBS.tif',
-  'annotate_SBS_extra.tif',
+  'annotate_SBS.tif', # LoG image overlayed with base calls
+  # 'annotate_SBS_extra.tif', # LoG image overlayed with base calls annotated as mapped/unmapped
+  # 'annotate_segment.tif' # first cycle of SBS overlayed with cell and nuclei outlines
 ]
 # discarded after processing to save space
 TEMP_TAGS: ['aligned.tif', 'maxed.tif', 'std.tif'] # ignored in paramsearch modes
 
 ### INPUT TO ANALYSIS
 WELL_TILE_LIST: 'input/well_tile_list.csv'
-INCLUDE_WELLS_TILES: [['A1',107]] # either 'all' or list of [well,tile] pair lists. If running in either paramsearch modes, sites must be restricted to a subset
+INCLUDE_WELLS_TILES: [['A1',102]] # either 'all' or list of [well,tile] pair lists. If running in either paramsearch modes, sites must be restricted to a subset
 INPUT_DIRECTORY: 'input'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
@@ -29,22 +31,40 @@ PHENOTYPE_CYCLE: 'c0-DAPI-p65ab'
 
 ### ANALYSIS PARAMETERS
 SEGMENT_METHOD: 'cell_2019' # either 'cell_2019' or 'cellpose'
-# CELLPOSE_CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing; not used when SEGMENT_METHOD='cell_2019'
-# CELLPOSE_DIAMETER: 20 # not used when SEGMENT_METHOD='cell_2019'
-AUTOSCALE_PHENOTYPE: False
-NUCLEUS_AREA: [[40, 400], [20,800]] # min and max nucleus area in pixels, for paramsearch_segmentation mode can be list of [min,max] lists to test; not used when SEGMENT_METHOD='cellpose'
-THRESHOLD_DAPI: [100,200,500]  # threshold for segmenting nuclei, for paramsearch_segmentation mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
-THRESHOLD_CELL: [400,600,800]  # threshold for segmenting cells, for paramsearch_segmentation mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
-THRESHOLD_READS: 75  # threshold for detecting reads, for paramsearch_read-calling mode can be list of thresholds to test; not used when SEGMENT_METHOD='cellpose'
+CELLPOSE: # not used when SEGMENT_METHOD='cell_2019'
+  CYTO_CYCLE: -1 # -1 is the last cycle
+  CYTO_CHANNEL: 4 # 0-indexed, 4="C" channel from sequencing
+  DIAMETER: 14 # calculated by running CellPose calibration (e.g., from their GUI)
+
+# morphological segmentation parameters, not used when SEGMENT_METHOD='cellpose'
+NUCLEUS_AREA: [[40, 400], [20,800]] # min and max nucleus area in pixels, for paramsearch_segmentation mode can be list of [min,max] lists to test
+THRESHOLD_DAPI: [100,200,500]  # threshold for segmenting nuclei, for paramsearch_segmentation mode can be list of thresholds to test
+THRESHOLD_CELL: [400,600,800]  # threshold for segmenting cells, for paramsearch_segmentation mode can be list of thresholds to test
+THRESHOLD_READS: 75  # threshold for detecting reads, for paramsearch_read-calling mode can be list of thresholds to test
+
 MAXED_WIDTH: 3
+AUTOSCALE_PHENOTYPE: False # set to True if different microscope binning used for sequencing and phenotype acquisitions
 NUCLEUS_PHENOTYPE_FEATURES: [
     'label', # required to join SBS and phenotype data
-    'i', 'j', 'area',
-    'dapi_gfp_corr',
-    'dapi_max', 'dapi_mean', 'dapi_median',
-    'gfp_max', 'gfp_mean', 'gfp_median',
+    'i', 'j', 'area', # named features
+    # features defined by channel
+    # list of [indexed feature name,output feature name], ops.features.indexed_feature_names
+    # e.g., ['c0_mean','dapi_mean'] extracts the mean intensity of channel 0, which in the final table is named 'dapi_mean'
+    ['c0_mean', 'dapi_mean'],
+    ['c1_mean', 'ha_mean'],
+    ['c0_median', 'dapi_median'],
+    ['c1_median', 'ha_median'],
+    ['c0_max', 'dapi_max'],
+    ['c1_max', 'ha_max'],
+    ['c0_min', 'dapi_min'],
+    ['c1_min', 'ha_min'],
+    ['c0c1_corr', 'dapi_ha_corr'],
   ]
-CELL_PHENOTYPE_FEATURES: ['label', 'area']
+CELL_PHENOTYPE_FEATURES: [
+    # same format as above
+    'label', # required to join SBS and phenotype data
+    'area'
+  ]
 
 ### DISPLAY OPTIONS
 DISPLAY_RANGES:
