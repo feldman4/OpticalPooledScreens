@@ -26,13 +26,18 @@ sh install.sh
 
 The `ops` package is installed with `pip install -e`, so the source code in the `ops/` directory can be modified in place.
 
-## Running an example pipeline
-
 Once installed, activate the virtual environment from the project directory:
 
 ```bash
 source venv/bin/activate
 ```
+
+Additionally, if using the CellPose segmentation method, this must be installed in the virtual environment:
+```bash
+pip install cellpose[gui]
+```
+
+## Running an example pipeline
 
 To run the analysis pipeline with images from the [original publication](https://doi.org/10.1016/j.cell.2019.09.016), first download and install the [IBM Aspera Command Line Interface](https://www.ibm.com/support/knowledgecenter/SS4F2E_3.9/navigation/cli_welcome.html) (includes `ascp`) for interaction with the Cell-IDR databse. Then, set up an example directory:
 
