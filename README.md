@@ -1,6 +1,6 @@
 ## Optical Pooled Screens
 
-Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*.
+Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*, based on code originally developed for the publication *Optical pooled screens in human cells*.
 
 ### Installation (OSX)
 
