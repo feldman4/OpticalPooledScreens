@@ -1,6 +1,6 @@
 ## Optical Pooled Screens
 
-Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*, based on an [earlier version](https://github.com/feldman4/OpticalPooledScreens_2019) developed for the publication *Optical pooled screens in human cells*.
+Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*. If you are looking for the repository developed for the original publication *Optical pooled screens in human cells*, it's [here](https://github.com/feldman4/OpticalPooledScreens_2019).
 
 ### Installation (OSX)
 
