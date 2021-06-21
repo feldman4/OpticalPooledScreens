@@ -70,7 +70,7 @@ python -m ops.paper.cell_idr get_cell_idr \
 ```
 The following experiments are available:
 
-| Cell-IDR experiment | dataset |
+| Cell-IDR experiment | Dataset |
 |---------------------|---------|
 | A | static p65-mNeonGreen screen in HeLa cells |
 | B | static p65 antibody screen in HeLa cells |
