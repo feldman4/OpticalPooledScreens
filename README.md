@@ -1,6 +1,6 @@
 ## Optical Pooled Screens
 
-Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*.
+Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*. This is an updated and expanded version of the repository for the original 2019 publication [*Optical pooled screens in human cells*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6886477/), available [here](https://github.com/feldman4/OpticalPooledScreens_2019).
 
 ### Installation (OSX)
 
@@ -56,7 +56,7 @@ snakemake --cores all -configfile=config.yaml
 
 ## Additional example data
 
-An example tile of 12-cycle SBS data is available in the original OpticalPooledScreens repository [here](https://github.com/feldman4/OpticalPooledScreens/tree/master/example_data).
+An example tile of 12-cycle SBS data is available in the original OpticalPooledScreens repository [here](https://github.com/feldman4/OpticalPooledScreens_2019/tree/master/example_data).
 
 Additionally, all screening data presented in the [original publication](https://doi.org/10.1016/j.cell.2019.09.016) can be easily accessed from the public [Cell-IDR](https://idr.openmicroscopy.org/cell/) database (study `idr0071`) using `ascp` similar to above for the example pipeline:
 
@@ -70,7 +70,7 @@ python -m ops.paper.cell_idr get_cell_idr \
 ```
 The following experiments are available:
 
-| Cell-IDR experiment | dataset |
+| Cell-IDR experiment | Dataset |
 |---------------------|---------|
 | A | static p65-mNeonGreen screen in HeLa cells |
 | B | static p65 antibody screen in HeLa cells |
