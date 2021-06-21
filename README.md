@@ -56,7 +56,7 @@ snakemake --cores all -configfile=config.yaml
 
 ## Additional example data
 
-An example tile of 12-cycle SBS data is available in the original OpticalPooledScreens repository [here](https://github.com/feldman4/OpticalPooledScreens/tree/master/example_data).
+An example tile of 12-cycle SBS data is available in the original OpticalPooledScreens repository [here](https://github.com/feldman4/OpticalPooledScreens_2019/tree/master/example_data).
 
 Additionally, all screening data presented in the [original publication](https://doi.org/10.1016/j.cell.2019.09.016) can be easily accessed from the public [Cell-IDR](https://idr.openmicroscopy.org/cell/) database (study `idr0071`) using `ascp` similar to above for the example pipeline:
 
