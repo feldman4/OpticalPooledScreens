@@ -51,7 +51,7 @@ Run the pipeline on the example data using [snakemake](https://snakemake.readthe
 
 ```bash
 cd example
-snakemake --cores all -configfile=config.yaml
+snakemake --cores all --configfile=config.yaml
 ```
 
 ## Additional example data
