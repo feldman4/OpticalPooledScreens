@@ -66,46 +66,47 @@ def get_metadata_at_coords(nd2, **coords):
                     'y_um': nd2._buf_md.dYPos,
                     'z_um': nd2._buf_md.dZPos,
                     't_ms': nd2._buf_md.dTimeMSec,
-                }    
+                }
+
+def get_axis_size(nd2,axis):
+    try:
+        size = list(range(nd2.sizes[axis]))
+    except:
+        size = [0]
+    return size
 
 def extract_nd2_metadata(f, interpolate=True, progress=None):
     """Interpolation fills in timestamps linearly for each well; x,y,z positions 
     are copied from the first time point. 
     """
     with ND2_Reader(f) as nd2:
-
-        ts = range(nd2.sizes['t'])
-        ms = range(nd2.sizes['m'])   
+        ts = get_axis_size(nd2,'t')
+        ms = get_axis_size(nd2,'m')
+        zs = get_axis_size(nd2,'z')   
 
         if progress is None:
             progress = lambda x: x
 
-        arr = []
-        for t, m in progress(list(product(ts, ms))):
-            boundaries = [0, nd2.sizes['m'] - 1]
-            skip = m not in boundaries and t > 0
-            if interpolate and skip:
-                metadata = {}
-            else:
-                metadata = get_metadata_at_coords(nd2, t=t, m=m)
-            metadata['t'] = t
-            metadata['m'] = m
-            metadata['file'] = f
-            arr += [metadata]
-    
-        
-    df_info = pd.DataFrame(arr)
-    if interpolate:
-        return (df_info
-         .sort_values(['m', 't'])
-         .assign(x_um=lambda x: x['x_um'].fillna(method='ffill'))
-         .assign(y_um=lambda x: x['y_um'].fillna(method='ffill'))        
-         .assign(z_um=lambda x: x['z_um'].fillna(method='ffill'))         
-         .sort_values(['t', 'm'])
-         .assign(t_ms=lambda x: x['t_ms'].interpolate())
-                )
-    else:
-        return df_info
+        if len(ts)==len(ms)==len(zs)==0:
+            arr = [get_metadata_at_coords(nd2)]
+        else:
+            arr = []
+            for t, m, z in progress(list(product(ts, ms, zs))):
+                if len(ms)>1:
+                    boundaries = [0, nd2.sizes['m'] - 1]
+                    skip = m not in boundaries and t > 0
+                else:
+                    skip=False
+                if interpolate and skip:
+                    metadata = {}
+                else:
+                    metadata = get_metadata_at_coords(nd2, t=t, m=m, z=z)
+                metadata['t'] = t
+                metadata['m'] = m
+                metadata['z'] = z
+                metadata['file'] = f
+                metadata.update()
+                arr += [metadata]
 
 
 
