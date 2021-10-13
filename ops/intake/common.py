@@ -107,6 +107,19 @@ def extract_nd2_metadata(f, interpolate=True, progress=None):
                 metadata['file'] = f
                 metadata.update()
                 arr += [metadata]
+        
+    df_info = pd.DataFrame(arr)
+    if interpolate:
+        return (df_info
+         .sort_values(['m', 't'])
+         .assign(x_um=lambda x: x['x_um'].fillna(method='ffill'))
+         .assign(y_um=lambda x: x['y_um'].fillna(method='ffill'))        
+         .assign(z_um=lambda x: x['z_um'].fillna(method='ffill'))         
+         .sort_values(['t', 'm'])
+         .assign(t_ms=lambda x: x['t_ms'].interpolate())
+                )
+    else:
+        return df_info
 
 
 
