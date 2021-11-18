@@ -513,7 +513,7 @@ class Snake():
         return df_bases
 
     @staticmethod
-    def _call_reads(df_bases, peaks=None, correction_only_in_cells=True):
+    def _call_reads(df_bases, peaks=None, correction_only_in_cells=True, boost=None):
         """Call reads by compensating for channel cross-talk and calling the base
         with highest corrected intensity for each cycle. This "median correction"
         is performed independently for each tile.
@@ -546,14 +546,13 @@ class Snake():
         if correction_only_in_cells:
             if len(df_bases.query('cell > 0')) == 0:
                 return
-        
         cycles = len(set(df_bases['cycle']))
         channels = len(set(df_bases['channel']))
 
         df_reads = (df_bases
             .pipe(ops.in_situ.clean_up_bases)
             .pipe(ops.in_situ.do_median_call, cycles, channels=channels,
-                correction_only_in_cells=correction_only_in_cells)
+                correction_only_in_cells=correction_only_in_cells, boost=boost)
             )
 
         if peaks is not None:
@@ -636,8 +635,8 @@ class Snake():
         
 
     @staticmethod
-    def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles,
-                            shape=(1024, 1024)):
+    def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles):
+        shape = log.shape[-2:]
         barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
         barcodes = [barcode_to_prefix(x) for x in barcode_table['barcode']]
 
@@ -660,10 +659,10 @@ class Snake():
                      [1, 0, 0]]
 
         f = ops.annotate.annotate_bases
-        base_labels  = f(df_reads.query('mapped'), selem=notch)
-        base_labels += f(df_reads.query('~mapped'), selem=plus)
+        base_labels  = f(df_reads.query('mapped'), selem=notch, shape=shape)
+        base_labels += f(df_reads.query('~mapped'), selem=plus, shape=shape)
         # Q_min converted to 30 point integer scale
-        Q_min = ops.annotate.annotate_points(df_reads, 'Q_min', selem=top_right)
+        Q_min = ops.annotate.annotate_points(df_reads, 'Q_min', selem=top_right, shape=shape)
         Q_30 = (Q_min * 30).astype(int)
         # a "donut" around each peak indicating the peak intensity
         peaks_donut = skimage.morphology.dilation(peaks, selem=np.ones((3, 3)))

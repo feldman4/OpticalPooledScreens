@@ -1,6 +1,5 @@
 """Interface to cellpose
 """
-from cellpose.models import Cellpose
 import numpy as np
 import contextlib
 import sys
@@ -9,6 +8,8 @@ from ops.annotate import relabel_array
 from skimage.measure import regionprops
 from skimage.segmentation import clear_border
 
+# delay this import because cellpose install can be time-consuming
+# from cellpose.models import Cellpose
 
 
 def segment_cellpose(dapi, cyto, nuclei_diameter, cell_diameter, gpu=False, 
@@ -18,6 +19,7 @@ def segment_cellpose(dapi, cyto, nuclei_diameter, cell_diameter, gpu=False,
     """
     # import logging
     # logging.getLogger('cellpose').setLevel(logging.WARNING)
+    from cellpose.models import Cellpose
 
     if logscale:
         cyto = image_log_scale(cyto)
@@ -45,6 +47,7 @@ def segment_cellpose(dapi, cyto, nuclei_diameter, cell_diameter, gpu=False,
 def segment_cellpose_rgb(rgb, diameter, gpu=False, 
                      net_avg=False, cyto_model='cyto', reconcile=True, logscale=True,
                      remove_edges=True):
+    from cellpose.models import Cellpose
 
     model_dapi = Cellpose(model_type='nuclei', gpu=gpu, net_avg=net_avg)
     model_cyto = Cellpose(model_type=cyto_model, gpu=gpu, net_avg=net_avg)

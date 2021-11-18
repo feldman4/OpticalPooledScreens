@@ -184,7 +184,8 @@ rule call_reads:
     output:
         processed_output('reads.csv')
     run:
-        Snake.call_reads(output=output, df_bases=input[0], peaks=input[1])
+        Snake.call_reads(output=output, df_bases=input[0], peaks=input[1], 
+            boost=config.get('BOOST', None))
 
 rule call_cells:
     input:

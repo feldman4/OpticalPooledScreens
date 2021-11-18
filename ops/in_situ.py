@@ -40,25 +40,30 @@ def format_bases(values, labels, positions, cycles, bases):
     return df
 
 
-def do_median_call(df_bases, cycles=12, channels=4, correction_only_in_cells=False):
+def do_median_call(df_bases, cycles=12, channels=4, correction_only_in_cells=False, boost=None):
     """Call reads from raw base signal using median correction. Use the 
     `correction_within_cells` flag to specify if correction is based on reads within 
     cells, or all reads.
     """
+    def get_values(df):
+        if boost is not None:
+            return dataframe_to_values(df) * boost
+        return dataframe_to_values(df)
+
     if correction_only_in_cells:
         # first obtain transformation matrix W
-        X_ = dataframe_to_values(df_bases.query('cell > 0'))
+        X_ = get_values(df_bases.query('cell > 0'))
         _, W = transform_medians(X_.reshape(-1, channels))
 
         # then apply to all data
-        X = dataframe_to_values(df_bases)
+        X = get_values(df_bases)
         Y = W.dot(X.reshape(-1, channels).T).T.astype(int)
     else:
-        X = dataframe_to_values(df_bases)
+        X = get_values(df_bases)
         Y, W = transform_medians(X.reshape(-1, channels))
 
+    print('boost', boost, X.mean(axis=(0, 1)), Y.mean(axis=0))
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
-
     return df_reads
 
 

@@ -60,7 +60,7 @@ def parse_filename(filename, custom_patterns=None):
         patterns += list(custom_patterns)
 
     for pattern in patterns:
-        match = re.match(pattern, filename)
+        match = re.match(pattern, filename, re.IGNORECASE)
         try:
             result = {k:v for k,v in match.groupdict().items() if v is not None}
             result[FILE] = filename  # convenience, not used by name_file
