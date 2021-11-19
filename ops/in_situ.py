@@ -62,7 +62,7 @@ def do_median_call(df_bases, cycles=12, channels=4, correction_only_in_cells=Fal
         X = get_values(df_bases)
         Y, W = transform_medians(X.reshape(-1, channels))
 
-    print('boost', boost, X.mean(axis=(0, 1)), Y.mean(axis=0))
+    # print('boost', boost, X.mean(axis=(0, 1)), Y.mean(axis=0))
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
     return df_reads
 
