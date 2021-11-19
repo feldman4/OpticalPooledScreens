@@ -135,6 +135,7 @@ rule segment:
                 nuclei_area_min=config['NUCLEUS_AREA'][0],
                 nuclei_area_max=config['NUCLEUS_AREA'][1],
                 cell_threshold=config['THRESHOLD_CELL'],
+                compress=1,
             )
         elif config['SEGMENT_METHOD'] == 'cellpose':
             # last cycle
@@ -146,6 +147,7 @@ rule segment:
                 dapi_index=0, 
                 cyto_index=config['CELLPOSE']['CYTO_CHANNEL'],
                 diameter=config['CELLPOSE']['DIAMETER'],
+                compress=1,
                 )
         else:
             error = ('config entry SEGMENT_METHOD must be "cell_2019" or "cellpose", '
