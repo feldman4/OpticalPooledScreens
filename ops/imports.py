@@ -34,5 +34,5 @@ from .utils import (
 )
 
 from .plates import add_global_xy, add_row_col
-from .pool_design import reverse_complement as rc
+# from .pool_design import reverse_complement as rc
 from . import in_situ

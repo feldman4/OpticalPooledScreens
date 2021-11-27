@@ -43,6 +43,7 @@ def grid_view(files, bounds, padding=40, with_mask=False):
     Mask is 1-indexed, zero indicates background.
     """
     padding = int(padding)
+    bounds = np.array([list(x) for x in bounds])
     bounds = np.round(bounds).astype(int)
 
     arr = []
