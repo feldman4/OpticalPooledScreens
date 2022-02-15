@@ -23,7 +23,7 @@ INPUT_DIRECTORY: 'input'
 BARCODE_TABLE: 'barcodes.csv'
 MAGNIFICATION: '10X'
 SBS_INPUT_TAG: 'sbs.tif'
-SBS_CYCLES: [1, 2, 3, 4, 5, 7, 8, 9, 10] # cycles to include for analysis
+SBS_CYCLES: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] # cycles to include for analysis
 SBS_CYCLE_FORMAT: 'c{cycle}-SBS-{cycle}' # python format string
 
 PHENOTYPE_INPUT_TAG: 'phenotype.tif'
