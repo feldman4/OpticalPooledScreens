@@ -27,11 +27,20 @@ def feature_table(data, labels, features, global_features=None):
     results = defaultdict(list)
     for region in regions:
         for feature, func in features.items():
-            results[feature].append(func(region))
+            results[feature].append(fix_uint16(func(region)))
     if global_features:
         for feature, func in global_features.items():
-            results[feature] = func(data, labels)
+            results[feature] = fix_uint16(func(data, labels))
+
     return pd.DataFrame(results)
+
+
+def fix_uint16(x):
+    """Pandas bug converts np.uint16 to np.int16!!! 
+    """
+    if isinstance(x, np.uint16):
+        return int(x)
+    return x
 
 
 def build_feature_table(stack, labels, features, index):
