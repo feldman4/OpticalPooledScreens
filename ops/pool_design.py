@@ -571,7 +571,7 @@ def import_brunello(filename):
 def import_tkov3(filename, df_ncbi):    
     columns = {'GENE': GENE_SYMBOL, 'SEQUENCE': SGRNA}
     symbols_to_ids = df_ncbi.set_index(GENE_SYMBOL)[GENE_ID]
-    return (pd.read_excel(filename)
+    return (pd.read_excel(filename,engine='openpyxl')
      .rename(columns=columns)
      [[GENE_SYMBOL, SGRNA]]
      .join(symbols_to_ids, on=GENE_SYMBOL, how='inner')
