@@ -1,12 +1,12 @@
 ## Optical Pooled Screens
 
-Analysis resources for the publication *Pooled genetic perturbation screens with image-based phenotypes*. This is an updated and expanded version of the repository for the original 2019 publication [*Optical pooled screens in human cells*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6886477/), available [here](https://github.com/feldman4/OpticalPooledScreens_2019).
+Analysis resources for the publication [*Pooled genetic perturbation screens with image-based phenotypes*](https://pubmed.ncbi.nlm.nih.gov/35022620/). This is an updated and expanded version of the repository for the original 2019 publication [*Optical pooled screens in human cells*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6886477/), available [here](https://github.com/feldman4/OpticalPooledScreens_2019).
 
 ### Installation (OSX)
 
 Download the repository (e.g., on Github use the green "Clone or download" button, then "Download ZIP").
 
-In Terminal, go to the NatureProtocols project directory and create a Python 3 virtual environment using a command like:
+In Terminal, go to the OpticalPooledScreens project directory and create a Python 3 virtual environment using a command like:
 
 ```bash
 python3 -m venv venv
@@ -24,9 +24,9 @@ This creates a virtual environment called `venv` for project-specific resources.
 sh install.sh
 ```
 
-The `ops` package is installed with `pip install -e`, so the source code in the `ops/` directory can be modified in place.
+Within this script, the `ops` package is installed with `pip install -e`, so the source code in the `ops/` directory can be modified in place.
 
-Once installed, activate the virtual environment from the project directory:
+Once install is complete, activate the virtual environment from the project directory:
 
 ```bash
 source venv/bin/activate
