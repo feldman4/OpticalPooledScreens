@@ -57,6 +57,9 @@ def get_cell_idr(directory, experiment='C', well='all', tile='all', ascp=ascp_gu
      .query(select_image_tags)
     )
 
+    if df_idr.pipe(len)==0:
+        raise ValueError('No valid tiles specified for the chosen experiment.')
+
     pairlist = f'{directory}/ascp_download_list.txt'
     write_pairlist(df_idr, pairlist)
     command = format_ascp_command(ascp, pairlist, local=directory)
@@ -69,6 +72,9 @@ def get_cell_idr(directory, experiment='C', well='all', tile='all', ascp=ascp_gu
             'Try a secure network with better connectivity.'
             )
         raise QuitError
+
+    well_tile_list = f'{directory}/experiment{experiment}/well_tile_list_example.csv'
+    df_idr[['well','tile']].drop_duplicates().to_csv(well_tile_list, index=None)
 
 
 def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
@@ -98,9 +104,6 @@ def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
         print(f'Linked {there}')
 
     get_cell_idr(directory, well=well, tile=tile, ascp=ascp)
-
-    well_tile_list = f'{directory}/experimentC/well_tile_list_example.csv'
-    pd.DataFrame({'well': [well], 'tile': [tile]}).to_csv(well_tile_list, index=None)
 
     print('Setup complete.\nTo run the example snakemake pipeline, execute the following:')
     print(f'cd {directory}')
