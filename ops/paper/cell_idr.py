@@ -77,7 +77,7 @@ def get_cell_idr(directory, experiment='C', well='all', tile='all', ascp=ascp_gu
     df_idr[['well','tile']].drop_duplicates().to_csv(well_tile_list, index=None)
 
 
-def setup_example(directory, ascp=ascp_guess, well='A1', tile='102'):
+def setup_example(directory, ascp=ascp_guess, well='A1', tile=102):
     """Create a fresh analysis directory for Cell IDR experiment C (A549 cells, CROPseq library, 
     p65 antibody).
     
