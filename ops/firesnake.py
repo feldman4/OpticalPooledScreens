@@ -1,3 +1,14 @@
+from .process import Align
+import ops.utils
+import ops.in_situ
+import ops.io
+import ops.process
+import ops.features
+import ops.annotate
+import skimage.morphology
+import skimage.io
+import pandas as pd
+import numpy as np
 import inspect
 import functools
 import os
@@ -7,18 +18,6 @@ warnings.filterwarnings('ignore', message='numpy.dtype size changed')
 warnings.filterwarnings('ignore', message='regionprops and image moments')
 warnings.filterwarnings('ignore', message='non-tuple sequence for multi')
 warnings.filterwarnings('ignore', message='precision loss when converting')
-
-import numpy as np
-import pandas as pd
-import skimage.io
-import skimage.morphology
-import ops.annotate
-import ops.features
-import ops.process
-import ops.io
-import ops.in_situ
-import ops.utils
-from .process import Align
 
 
 class Snake():
@@ -32,7 +31,7 @@ class Snake():
 
     @staticmethod
     def _align_SBS(data, method='DAPI', upsample_factor=2, window=2, cutoff=1,
-        align_channels=slice(1, None), keep_trailing=False):
+                   align_channels=slice(1, None), keep_trailing=False):
         """Rigid alignment of sequencing cycles and channels. 
 
         Parameters
@@ -68,8 +67,6 @@ class Snake():
             If True, keeps only the minimum number of trailing channels across cycles. E.g., if one cycle contains 6 channels,
             but all others have 5, only uses trailing 5 channels for alignment.
 
-        n : int, default 1
-            The first SBS channel in `data`.
 
         Returns
         -------
@@ -89,30 +86,32 @@ class Snake():
         aligned = data.copy()
 
         if align_channels is not None:
-            align_it = lambda x: Align.align_within_cycle(
+            def align_it(x): return Align.align_within_cycle(
                 x, window=window, upsample_factor=upsample_factor)
             aligned[:, align_channels] = np.array(
                 [align_it(x) for x in aligned[:, align_channels]])
-            
 
         if method == 'DAPI':
             # align cycles using the DAPI channel
-            aligned = Align.align_between_cycles(aligned, channel_index=0, 
-                                window=window, upsample_factor=upsample_factor)
+            aligned = Align.align_between_cycles(aligned, channel_index=0,
+                                                 window=window, upsample_factor=upsample_factor)
         elif method == 'SBS_mean':
             # calculate cycle offsets using the average of SBS channels
-            target = Align.apply_window(aligned[:, n:], window=window).max(axis=1)
+            target = Align.apply_window(
+                aligned[:, align_channels], window=window).max(axis=1)
             normed = Align.normalize_by_percentile(target)
             normed[normed > cutoff] = cutoff
-            offsets = Align.calculate_offsets(normed, upsample_factor=upsample_factor)
+            offsets = Align.calculate_offsets(
+                normed, upsample_factor=upsample_factor)
             # apply cycle offsets to each channel
             for channel in range(aligned.shape[1]):
-                aligned[:, channel] = Align.apply_offsets(aligned[:, channel], offsets)
+                aligned[:, channel] = Align.apply_offsets(
+                    aligned[:, channel], offsets)
 
         return aligned
 
     @staticmethod
-    def _align_by_DAPI(data_1, data_2, channel_index=0, upsample_factor=2, 
+    def _align_by_DAPI(data_1, data_2, channel_index=0, upsample_factor=2,
                        autoscale=True):
         """Align the second image to the first, using the channel at position 
         `channel_index`. The first channel is usually DAPI.
@@ -147,14 +146,15 @@ class Snake():
         if autoscale:
             images[1] = ops.utils.match_size(images[1], images[0])
 
-        _, offset = ops.process.Align.calculate_offsets(images, upsample_factor=upsample_factor)
+        _, offset = ops.process.Align.calculate_offsets(
+            images, upsample_factor=upsample_factor)
         if autoscale:
             offset *= data_2.shape[-1] / data_1.shape[-1]
 
         offsets = [offset] * len(data_2)
         aligned = ops.process.Align.apply_offsets(data_2, offsets)
         return aligned
-        
+
     @staticmethod
     def _segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
         """Find nuclei from DAPI. Uses local mean filtering to find cell foreground from aligned
@@ -194,9 +194,9 @@ class Snake():
         else:
             dapi = data
 
-        kwargs = dict(threshold=lambda x: threshold, 
-            area_min=area_min, area_max=area_max,
-            smooth=smooth, radius=radius)
+        kwargs = dict(threshold=lambda x: threshold,
+                      area_min=area_min, area_max=area_max,
+                      smooth=smooth, radius=radius)
 
         # skimage precision warning
         with warnings.catch_warnings():
@@ -209,9 +209,9 @@ class Snake():
         """Find nuclei from a nuclear stain (e.g., DAPI). Expects data to have shape (I, J) 
         (segments one image) or (N, I, J) (segments a series of DAPI images).
         """
-        kwargs = dict(threshold=lambda x: threshold, 
-            area_min=area_min, area_max=area_max,
-            smooth=smooth, radius=radius)
+        kwargs = dict(threshold=lambda x: threshold,
+                      area_min=area_min, area_max=area_max,
+                      smooth=smooth, radius=radius)
 
         find_nuclei = ops.utils.applyIJ(ops.process.find_nuclei)
         # skimage precision warning
@@ -276,7 +276,8 @@ class Snake():
         """Combine morphological segmentation of nuclei and cells to have the same 
         interface as _segment_cellpose.
         """
-        nuclei = Snake._segment_nuclei(data[0], nuclei_threshold, nuclei_area_min, nuclei_area_max)
+        nuclei = Snake._segment_nuclei(
+            data[0], nuclei_threshold, nuclei_area_min, nuclei_area_max)
         cells = Snake._segment_cells(data, nuclei, cell_threshold)
         return nuclei, cells
 
@@ -290,7 +291,7 @@ class Snake():
         rgb = Snake._prepare_cellpose(data, dapi_index, cyto_index)
         nuclei, cells = segment_cellpose_rgb(rgb, diameter)
         return nuclei, cells
-        
+
     @staticmethod
     def _prepare_cellpose(data, dapi_index, cyto_index, logscale=True):
         """Export three-channel RGB image for use with cellpose GUI (e.g., to select
@@ -308,14 +309,14 @@ class Snake():
         blank = np.zeros_like(dapi)
         if logscale:
             cyto = image_log_scale(cyto)
-            cyto /= cyto.max() # for ubyte conversion
+            cyto /= cyto.max()  # for ubyte conversion
 
         dapi_upper = np.percentile(dapi, 99.5)
         dapi = dapi / dapi_upper
         dapi[dapi > 1] = 1
-        red, green, blue = img_as_ubyte(blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
+        red, green, blue = img_as_ubyte(
+            blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
         return np.array([red, green, blue]).transpose([1, 2, 0])
-
 
     # IN SITU
 
@@ -372,15 +373,15 @@ class Snake():
             data = remove_channels(data, remove_index)
 
         # for 1-cycle experiments
-        if len(data.shape)==3:
-            data = data[:,None,...]
+        if len(data.shape) == 3:
+            data = data[:, None, ...]
 
         # leading_dims = tuple(range(0, data.ndim - 2))
         # consensus = np.std(data, axis=leading_dims)
         consensus = np.std(data, axis=0).mean(axis=0)
 
         return consensus
-    
+
     @staticmethod
     def _find_peaks(data, width=5, remove_index=None):
         """Find local maxima and label by difference to next-highest neighboring
@@ -412,9 +413,9 @@ class Snake():
         if data.ndim == 2:
             data = [data]
 
-        peaks = [ops.process.find_peaks(x, n=width) 
-                    if x.max() > 0 else x 
-                    for x in data]
+        peaks = [ops.process.find_peaks(x, n=width)
+                 if x.max() > 0 else x
+                 for x in data]
         peaks = np.array(peaks).squeeze()
         return peaks
 
@@ -450,9 +451,10 @@ class Snake():
 
         if remove_index is not None:
             data = remove_channels(data, remove_index)
-        
-        maxed = scipy.ndimage.filters.maximum_filter(data, size=(1, 1, width, width))
-    
+
+        maxed = scipy.ndimage.filters.maximum_filter(
+            data, size=(1, 1, width, width))
+
         return maxed
 
     @staticmethod
@@ -505,9 +507,10 @@ class Snake():
         values, labels, positions = (
             ops.in_situ.extract_base_intensity(maxed, peaks, cells, threshold_peaks))
 
-        df_bases = ops.in_situ.format_bases(values, labels, positions, cycles, bases)
+        df_bases = ops.in_situ.format_bases(
+            values, labels, positions, cycles, bases)
 
-        for k,v in sorted(wildcards.items()):
+        for k, v in sorted(wildcards.items()):
             df_bases[k] = v
 
         return df_bases
@@ -546,15 +549,15 @@ class Snake():
         if correction_only_in_cells:
             if len(df_bases.query('cell > 0')) == 0:
                 return
-        
+
         cycles = len(set(df_bases['cycle']))
         channels = len(set(df_bases['channel']))
 
         df_reads = (df_bases
-            .pipe(ops.in_situ.clean_up_bases)
-            .pipe(ops.in_situ.do_median_call, cycles, channels=channels,
-                correction_only_in_cells=correction_only_in_cells)
-            )
+                    .pipe(ops.in_situ.clean_up_bases)
+                    .pipe(ops.in_situ.do_median_call, cycles, channels=channels,
+                          correction_only_in_cells=correction_only_in_cells)
+                    )
 
         if peaks is not None:
             i, j = df_reads[['i', 'j']].values.T
@@ -589,17 +592,19 @@ class Snake():
         """
         if df_reads is None:
             return
-        
+
         if df_pool is None:
             return (df_reads
-                .query('Q_min >= @q_min')
-                .pipe(ops.in_situ.call_cells))
+                    .query('Q_min >= @q_min')
+                    .pipe(ops.in_situ.call_cells))
         else:
-            prefix_length = len(df_reads.iloc[0].barcode) # get the number of completed SBS cycles
-            df_pool[PREFIX] = df_pool.apply(lambda x: x.sgRNA[:prefix_length],axis=1)
+            # get the number of completed SBS cycles
+            prefix_length = len(df_reads.iloc[0].barcode)
+            df_pool[PREFIX] = df_pool.apply(
+                lambda x: x.sgRNA[:prefix_length], axis=1)
             return (df_reads
-                .query('Q_min >= @q_min')
-                .pipe(ops.in_situ.call_cells_mapping,df_pool))
+                    .query('Q_min >= @q_min')
+                    .pipe(ops.in_situ.call_cells_mapping, df_pool))
 
     # PHENOTYPE FEATURE EXTRACTION
 
@@ -607,14 +612,14 @@ class Snake():
     def _annotate_SBS(log, df_reads):
         # convert reads to a stack of integer-encoded bases
         cycles, channels, height, width = log.shape
-        base_labels = ops.annotate.annotate_bases(df_reads, width=3, shape=(height, width))
-        annotated = np.zeros((cycles, channels + 1, height, width), 
-                            dtype=np.uint16)
+        base_labels = ops.annotate.annotate_bases(
+            df_reads, width=3, shape=(height, width))
+        annotated = np.zeros((cycles, channels + 1, height, width),
+                             dtype=np.uint16)
 
         annotated[:, :channels] = log
         annotated[:, channels] = base_labels
         return annotated
-
 
     @staticmethod
     def _annotate_segment(data, nuclei, cells):
@@ -624,21 +629,20 @@ class Snake():
         if data.ndim == 3:
             data = data[None]
         cycles, channels, height, width = data.shape
-        annotated = np.zeros((cycles, channels + 1, height, width), 
-                            dtype=np.uint16)
+        annotated = np.zeros((cycles, channels + 1, height, width),
+                             dtype=np.uint16)
 
-        mask = (  (outline_mask(nuclei, direction='inner') > 0)
+        mask = ((outline_mask(nuclei, direction='inner') > 0)
                 + (outline_mask(cells, direction='inner') > 0))
         annotated[:, :channels] = data
         annotated[:, channels] = mask
 
         return np.squeeze(annotated)
-        
 
     @staticmethod
     def _annotate_SBS_extra(log, peaks, df_reads, barcode_table, sbs_cycles,
                             shape=(1024, 1024)):
-        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        def barcode_to_prefix(x): return ''.join(x[c - 1] for c in sbs_cycles)
         barcodes = [barcode_to_prefix(x) for x in barcode_table['barcode']]
 
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
@@ -653,30 +657,31 @@ class Snake():
                  [1, 1, 1],
                  [1, 1, 0]]
         notch2 = [[1, 1, 1],
-                 [1, 1, 1],
-                 [0, 1, 0]]
+                  [1, 1, 1],
+                  [0, 1, 0]]
         top_right = [[0, 0, 0],
                      [0, 0, 0],
                      [1, 0, 0]]
 
         f = ops.annotate.annotate_bases
-        base_labels  = f(df_reads.query('mapped'), selem=notch)
+        base_labels = f(df_reads.query('mapped'), selem=notch)
         base_labels += f(df_reads.query('~mapped'), selem=plus)
         # Q_min converted to 30 point integer scale
-        Q_min = ops.annotate.annotate_points(df_reads, 'Q_min', selem=top_right)
+        Q_min = ops.annotate.annotate_points(
+            df_reads, 'Q_min', selem=top_right)
         Q_30 = (Q_min * 30).astype(int)
         # a "donut" around each peak indicating the peak intensity
         peaks_donut = skimage.morphology.dilation(peaks, selem=np.ones((3, 3)))
-        peaks_donut[peaks > 0] = 0 
+        peaks_donut[peaks > 0] = 0
         # nibble some more
         peaks_donut[base_labels.sum(axis=0) > 0] = 0
         peaks_donut[Q_30 > 0] = 0
 
         cycles, channels, height, width = log.shape
-        annotated = np.zeros((cycles, 
-            channels + 2, 
-            # channels + 3, 
-            height, width), dtype=np.uint16)
+        annotated = np.zeros((cycles,
+                              channels + 2,
+                              # channels + 3,
+                              height, width), dtype=np.uint16)
 
         annotated[:, :channels] = log
         annotated[:, channels] = base_labels
@@ -723,9 +728,9 @@ class Snake():
 
         df = feature_table(data, labels, features)
 
-        for k,v in sorted(wildcards.items()):
+        for k, v in sorted(wildcards.items()):
             df[k] = v
-        
+
         return df
 
     @staticmethod
@@ -738,7 +743,7 @@ class Snake():
 
     @staticmethod
     def _extract_named_cell_nucleus_features(
-            data, cells, nuclei, cell_features, nucleus_features, wildcards, 
+            data, cells, nuclei, cell_features, nucleus_features, wildcards,
             autoscale=True, join='inner'):
         """Extract named features for cell and nucleus labels and join the results.
 
@@ -751,12 +756,12 @@ class Snake():
         assert 'label' in cell_features and 'label' in nucleus_features
         df_phenotype = pd.concat([
             Snake._extract_named_features(data, cells, cell_features, {})
-                .set_index('label').rename(columns=lambda x: x + '_cell'),
+            .set_index('label').rename(columns=lambda x: x + '_cell'),
             Snake._extract_named_features(data, nuclei, nucleus_features, {})
-                .set_index('label').rename(columns=lambda x: x + '_nucleus'),
+            .set_index('label').rename(columns=lambda x: x + '_nucleus'),
         ], join=join, axis=1).reset_index().rename(columns={'label': 'cell'})
-        
-        for k,v in sorted(wildcards.items()):
+
+        for k, v in sorted(wildcards.items()):
             df_phenotype[k] = v
 
         return df_phenotype
@@ -767,7 +772,7 @@ class Snake():
         """
         from ops.features import features_frameshift
         return (Snake._extract_features(data_phenotype, nuclei, wildcards, features_frameshift)
-             .rename(columns={'label': 'cell'}))
+                .rename(columns={'label': 'cell'}))
 
     @staticmethod
     def _extract_phenotype_FR_myc(data_phenotype, nuclei, wildcards):
@@ -775,7 +780,7 @@ class Snake():
         """
         from ops.features import features_frameshift_myc
         return (Snake._extract_features(data_phenotype, nuclei, wildcards, features_frameshift_myc)
-            .rename(columns={'label': 'cell'}))
+                .rename(columns={'label': 'cell'}))
 
     @staticmethod
     def _extract_phenotype_translocation(data_phenotype, nuclei, cells, wildcards):
@@ -787,31 +792,30 @@ class Snake():
         features_n = ops.features.features_translocation_nuclear
         features_c = ops.features.features_translocation_cell
 
-        features_n = {k + '_nuclear': v for k,v in features_n.items()}
-        features_c = {k + '_cell': v    for k,v in features_c.items()}
+        features_n = {k + '_nuclear': v for k, v in features_n.items()}
+        features_c = {k + '_cell': v for k, v in features_c.items()}
 
         df_n = (Snake._extract_features(data_phenotype, nuclei, wildcards, features_n)
-            .rename(columns={'area': 'area_nuclear'}))
+                .rename(columns={'area': 'area_nuclear'}))
 
-        df_c =  (Snake._extract_features(data_phenotype, cells, wildcards, features_c)
-            .drop(['i', 'j'], axis=1).rename(columns={'area': 'area_cell'}))
-
+        df_c = (Snake._extract_features(data_phenotype, cells, wildcards, features_c)
+                .drop(['i', 'j'], axis=1).rename(columns={'area': 'area_cell'}))
 
         # inner join discards nuclei without corresponding cells
         df = (pd.concat([df_n.set_index('label'), df_c.set_index('label')], axis=1, join='inner')
                 .reset_index())
 
         return (df
-            .rename(columns={'label': 'cell'}))
+                .rename(columns={'label': 'cell'}))
 
     @staticmethod
     def _extract_phenotype_translocation_live(data, nuclei, wildcards):
         def _extract_phenotype_translocation_simple(data, nuclei, wildcards):
             import ops.features
             features = ops.features.features_translocation_nuclear_simple
-            
+
             return (Snake._extract_features(data, nuclei, wildcards, features)
-                .rename(columns={'label': 'cell'}))
+                    .rename(columns={'label': 'cell'}))
 
         extract = _extract_phenotype_translocation_simple
         arr = []
@@ -831,12 +835,12 @@ class Snake():
         inner_ring[inside > 0] = 0
 
         return (Snake._extract_phenotype_translocation(data_phenotype, inner_ring, perimeter, wildcards)
-            .rename(columns={'label': 'cell'}))
+                .rename(columns={'label': 'cell'}))
 
     @staticmethod
     def _extract_phenotype_minimal(data_phenotype, nuclei, wildcards):
         return (Snake._extract_features(data_phenotype, nuclei, wildcards, dict())
-            .rename(columns={'label': 'cell'}))
+                .rename(columns={'label': 'cell'}))
 
     @staticmethod
     def _extract_phenotype_geom(labels, wildcards):
@@ -844,21 +848,21 @@ class Snake():
         return Snake._extract_features(labels, labels, wildcards, features_geom)
 
     @staticmethod
-    def _analyze_single(data, alignment_ref, cells, peaks, 
+    def _analyze_single(data, alignment_ref, cells, peaks,
                         threshold_peaks, wildcards, channel_ix=1):
         if alignment_ref.ndim == 3:
             alignment_ref = alignment_ref[0]
-        data = np.array([[alignment_ref, alignment_ref], 
-                          data[[0, channel_ix]]])
+        data = np.array([[alignment_ref, alignment_ref],
+                         data[[0, channel_ix]]])
         aligned = ops.process.Align.align_between_cycles(data, 0, window=2)
         loged = Snake._transform_log(aligned[1, 1])
         maxed = Snake._max_filter(loged, width=3)
         return (Snake._extract_bases(maxed, peaks, cells, bases=['-'],
-                    threshold_peaks=threshold_peaks, wildcards=wildcards))
+                                     threshold_peaks=threshold_peaks, wildcards=wildcards))
 
     @staticmethod
     def _track_live_nuclei(nuclei, tolerance_per_frame=5):
-        
+
         # if there are no nuclei, we will have problems
         count = nuclei.max(axis=(-2, -1))
         if (count == 0).any():
@@ -878,13 +882,13 @@ class Snake():
         # track nuclei
         motion_threshold = len(nuclei) * tolerance_per_frame
         G = (df_nuclei
-          .rename(columns={'cell': 'label'})
-          .pipe(ops.timelapse.initialize_graph)
-        )
+             .rename(columns={'cell': 'label'})
+             .pipe(ops.timelapse.initialize_graph)
+             )
 
         cost, path = ops.timelapse.analyze_graph(G)
-        relabel = ops.timelapse.filter_paths(cost, path, 
-                                    threshold=motion_threshold)
+        relabel = ops.timelapse.filter_paths(cost, path,
+                                             threshold=motion_threshold)
         nuclei_tracked = ops.timelapse.relabel_nuclei(nuclei, relabel)
 
         return nuclei_tracked
@@ -892,14 +896,14 @@ class Snake():
     # SNAKEMAKE
 
     @staticmethod
-    def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles, 
+    def _merge_sbs_phenotype(sbs_tables, phenotype_tables, barcode_table, sbs_cycles,
                              join='outer'):
         """Combine sequencing and phenotype tables with one row per cell, using key 
         (well, tile, cell). The cell column labels must be the same in both tables (e.g., both 
         tables generated from the same cell or nuclei segmentation). The default method of joining
         (outer) preserves cells present in only the sequencing table or phenotype table (with null
         values for missing data).
-        
+
         The barcode table is then joined using its `barcode` column to the most abundant 
         (`cell_barcode_0`) and second-most abundant (`cell_barcode_1`) barcodes for each cell. 
         The substring (prefix) of `barcode` used for joining is determined by the `sbs_cycles` 
@@ -910,102 +914,115 @@ class Snake():
             sbs_tables = [sbs_tables]
         if isinstance(phenotype_tables, pd.DataFrame):
             phenotype_tables = [phenotype_tables]
-        
+
         cols = ['well', 'tile', 'cell']
         df_sbs = pd.concat(sbs_tables).set_index(cols)
         df_phenotype = pd.concat(phenotype_tables).set_index(cols)
-        df_combined = pd.concat([df_sbs, df_phenotype], join=join, axis=1).reset_index()
-        
-        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        df_combined = pd.concat([df_sbs, df_phenotype],
+                                join=join, axis=1).reset_index()
+
+        def barcode_to_prefix(x): return ''.join(x[c - 1] for c in sbs_cycles)
         df_barcodes = (barcode_table
-         .assign(prefix=lambda x: x['barcode'].apply(barcode_to_prefix))
-         .assign(duplicate_prefix=lambda x: x['prefix'].duplicated(keep=False))
-         )
+                       .assign(prefix=lambda x: x['barcode'].apply(barcode_to_prefix))
+                       .assign(duplicate_prefix=lambda x: x['prefix'].duplicated(keep=False))
+                       )
 
         if 'barcode' in df_barcodes and 'sgRNA' in df_barcodes:
             df_barcodes = df_barcodes.drop('barcode', axis=1)
-        
+
         barcode_info = df_barcodes.set_index('prefix')
         return (df_combined
                 .join(barcode_info, on='cell_barcode_0')
-                .join(barcode_info.rename(columns=lambda x: x + '_1'), 
+                .join(barcode_info.rename(columns=lambda x: x + '_1'),
                       on='cell_barcode_1')
                 )
 
     @staticmethod
-    def _summarize_paramsearch_segmentation(data,segmentations):
-        summary = np.stack([data[0],np.median(data[1:], axis=0)]+segmentations)
+    def _summarize_paramsearch_segmentation(data, segmentations):
+        summary = np.stack(
+            [data[0], np.median(data[1:], axis=0)]+segmentations)
         return summary
 
     @staticmethod
-    def _summarize_paramsearch_reads(barcode_table,reads_tables,cells,sbs_cycles,figure_output):
+    def _summarize_paramsearch_reads(barcode_table, reads_tables, cells, sbs_cycles, figure_output):
         import matplotlib
         import seaborn as sns
 
         matplotlib.use('Agg')
 
-        barcode_to_prefix = lambda x: ''.join(x[c - 1] for c in sbs_cycles)
+        def barcode_to_prefix(x): return ''.join(x[c - 1] for c in sbs_cycles)
         barcodes = (barcode_table.assign(prefix=lambda x:
-                            x['barcode'].apply(barcode_to_prefix))
-                        ['prefix']
-                        .pipe(set)
-                        )
+                                         x['barcode'].apply(barcode_to_prefix))
+                    ['prefix']
+                    .pipe(set)
+                    )
 
         n_cells = [(len(np.unique(labels))-1) for labels in cells]
 
         df_reads = pd.concat(reads_tables)
-        df_reads = pd.concat([df.assign(total_cells=cell_count) 
-            for cell_count,(_,df) in zip(n_cells,df_reads.groupby(['well','tile'],sort=False))]
-            )
+        df_reads = pd.concat([df.assign(total_cells=cell_count)
+                              for cell_count, (_, df) in zip(n_cells, df_reads.groupby(['well', 'tile'], sort=False))]
+                             )
         df_reads['mapped'] = df_reads['barcode'].isin(barcodes)
 
         def summarize(df):
-            return pd.Series({'mapped_reads':df['mapped'].value_counts()[True],
-                'mapped_reads_within_cells':df.query('cell!=0')['mapped'].value_counts()[True],
-                'mapping_rate':df['mapped'].value_counts(normalize=True)[True],
-                'mapping_rate_within_cells':df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
-                'average_reads_per_cell':df.query('cell!=0').pipe(len)/df.iloc[0]['total_cells'],
-                'average_mapped_reads_per_cell':df.query('(cell!=0)&(mapped)').pipe(len)/df.iloc[0]['total_cells'],
-                'cells_with_reads':df.query('(cell!=0)')['cell'].nunique(),
-                'cells_with_mapped_reads':df.query('(cell!=0)&(mapped)')['cell'].nunique()})
+            return pd.Series({'mapped_reads': df['mapped'].value_counts()[True],
+                              'mapped_reads_within_cells': df.query('cell!=0')['mapped'].value_counts()[True],
+                              'mapping_rate': df['mapped'].value_counts(normalize=True)[True],
+                              'mapping_rate_within_cells': df.query('cell!=0')['mapped'].value_counts(normalize=True)[True],
+                              'average_reads_per_cell': df.query('cell!=0').pipe(len)/df.iloc[0]['total_cells'],
+                              'average_mapped_reads_per_cell': df.query('(cell!=0)&(mapped)').pipe(len)/df.iloc[0]['total_cells'],
+                              'cells_with_reads': df.query('(cell!=0)')['cell'].nunique(),
+                              'cells_with_mapped_reads': df.query('(cell!=0)&(mapped)')['cell'].nunique()})
 
-        df_summary = df_reads.groupby(['well','tile','THRESHOLD_READS']).apply(summarize).reset_index()
+        df_summary = df_reads.groupby(
+            ['well', 'tile', 'THRESHOLD_READS']).apply(summarize).reset_index()
 
         # plot
-        fig, axes = matplotlib.pyplot.subplots(2,1,figsize=(7,10),sharex=True)
+        fig, axes = matplotlib.pyplot.subplots(
+            2, 1, figsize=(7, 10), sharex=True)
 
         axes_right = [ax.twinx() for ax in axes]
 
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate',color='steelblue',ax=axes[0])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads',color='coral',ax=axes_right[0])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapping_rate_within_cells',color='steelblue',ax=axes[0])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='mapped_reads_within_cells',color='coral',ax=axes_right[0])
-        axes[0].set_ylabel('Mapping rate',fontsize=16)
-        axes_right[0].set_ylabel('Number of\nmapped reads',fontsize=16)
-        axes[0].set_title('Read mapping',fontsize=18)
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='mapping_rate', color='steelblue', ax=axes[0])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='mapped_reads', color='coral', ax=axes_right[0])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='mapping_rate_within_cells', color='steelblue', ax=axes[0])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='mapped_reads_within_cells', color='coral', ax=axes_right[0])
+        axes[0].set_ylabel('Mapping rate', fontsize=16)
+        axes_right[0].set_ylabel('Number of\nmapped reads', fontsize=16)
+        axes[0].set_title('Read mapping', fontsize=18)
 
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_reads_per_cell',color='steelblue',ax=axes[1])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='average_mapped_reads_per_cell',color='steelblue',ax=axes[1])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_reads',color='coral',ax=axes_right[1])
-        sns.lineplot(data=df_summary,x='THRESHOLD_READS',y='cells_with_mapped_reads',color='coral',ax=axes_right[1])
-        axes[1].set_ylabel('Mean reads per cell',fontsize=16)
-        axes_right[1].set_ylabel('Number of cells',fontsize=16)
-        axes[1].set_title('Read mapping per cell',fontsize=18)
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='average_reads_per_cell', color='steelblue', ax=axes[1])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='average_mapped_reads_per_cell', color='steelblue', ax=axes[1])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='cells_with_reads', color='coral', ax=axes_right[1])
+        sns.lineplot(data=df_summary, x='THRESHOLD_READS',
+                     y='cells_with_mapped_reads', color='coral', ax=axes_right[1])
+        axes[1].set_ylabel('Mean reads per cell', fontsize=16)
+        axes_right[1].set_ylabel('Number of cells', fontsize=16)
+        axes[1].set_title('Read mapping per cell', fontsize=18)
 
-        [ax.get_lines()[1].set_linestyle('--') for ax in list(axes)+list(axes_right)]
+        [ax.get_lines()[1].set_linestyle('--')
+         for ax in list(axes)+list(axes_right)]
 
         axes[0].legend(handles=axes[0].get_lines()+axes_right[0].get_lines(),
-                       labels=['mapping rate,\nall reads','mapping rate,\nwithin cells','all mapped reads','mapped reads\nwithin cells'],loc=7)
+                       labels=['mapping rate,\nall reads', 'mapping rate,\nwithin cells', 'all mapped reads', 'mapped reads\nwithin cells'], loc=7)
         axes[1].legend(handles=axes[1].get_lines()+axes_right[1].get_lines(),
-                       labels=['mean\nreads per cell','mean mapped\nreads per cell','cells with reads','cells with\nmapped reads'],loc=1)
+                       labels=['mean\nreads per cell', 'mean mapped\nreads per cell', 'cells with reads', 'cells with\nmapped reads'], loc=1)
 
-        axes[1].set_xlabel('THRESHOLD_READS',fontsize=16)
+        axes[1].set_xlabel('THRESHOLD_READS', fontsize=16)
         axes[1].set_xticks(df_summary['THRESHOLD_READS'].unique()[::2])
 
-        [ax.tick_params(axis='y',colors='steelblue') for ax in axes]
-        [ax.tick_params(axis='y',colors='coral') for ax in axes_right]
+        [ax.tick_params(axis='y', colors='steelblue') for ax in axes]
+        [ax.tick_params(axis='y', colors='coral') for ax in axes_right]
 
-        matplotlib.pyplot.savefig(figure_output,dpi=300,bbox_inches='tight')
+        matplotlib.pyplot.savefig(figure_output, dpi=300, bbox_inches='tight')
 
         return df_summary
 
@@ -1019,7 +1036,8 @@ class Snake():
         methods = inspect.getmembers(Snake)
         for name, f in methods:
             if name not in ('__doc__', '__module__') and name.startswith('_'):
-                Snake.add_method('Snake', name[1:], Snake.call_from_snakemake(f))
+                Snake.add_method(
+                    'Snake', name[1:], Snake.call_from_snakemake(f))
 
     @staticmethod
     def call_from_snakemake(f):
@@ -1038,13 +1056,13 @@ class Snake():
             input_kwargs, output_kwargs = restrict_kwargs(kwargs, f)
 
             # load arguments provided as filenames
-            input_kwargs = {k: load_arg(v) for k,v in input_kwargs.items()}
+            input_kwargs = {k: load_arg(v) for k, v in input_kwargs.items()}
 
             results = f(**input_kwargs)
 
             if 'output' in output_kwargs:
                 outputs = output_kwargs['output']
-                
+
                 if len(outputs) == 1:
                     results = [results]
 
@@ -1078,8 +1096,8 @@ def load_arg(x):
     Otherwise just return `x`.
     """
     one_file = load_file
-    many_files = lambda x: [load_file(f) for f in x]
-    
+    def many_files(x): return [load_file(f) for f in x]
+
     for f in one_file, many_files:
         try:
             return f(x)
@@ -1145,7 +1163,7 @@ def save_pkl(filename, df):
 def save_tif(filename, data_, **kwargs):
     kwargs, _ = restrict_kwargs(kwargs, ops.io.save_stack)
     # `data` can be an argument name for both the Snake method and `save_stack`
-    # overwrite with `data_` 
+    # overwrite with `data_`
     kwargs['data'] = data_
     ops.io.save_stack(filename, **kwargs)
 
@@ -1203,7 +1221,8 @@ def get_kwarg_defaults(f):
     if argspec.defaults is None:
         defaults = {}
     else:
-        defaults = {k: v for k,v in zip(argspec.args[::-1], argspec.defaults[::-1])}
+        defaults = {k: v for k, v in zip(
+            argspec.args[::-1], argspec.defaults[::-1])}
     return defaults
 
 
@@ -1234,13 +1253,16 @@ def load_well_tile_list(filename, include='all'):
     elif filename.endswith('csv'):
         df_wells_tiles = pd.read_csv(filename)
 
-    if include=='all':
-        wells,tiles = df_wells_tiles[['well','tile']].values.T
+    if include == 'all':
+        wells, tiles = df_wells_tiles[['well', 'tile']].values.T
 
-    elif isinstance(include,list):
-        df_wells_tiles['well_tile'] = df_wells_tiles['well']+df_wells_tiles['tile'].astype(str)
-        include_wells_tiles  = [''.join(map(str,well_tile)) for well_tile in include]
-        wells, tiles = df_wells_tiles.query('well_tile==@include_wells_tiles')[['well', 'tile']].values.T
+    elif isinstance(include, list):
+        df_wells_tiles['well_tile'] = df_wells_tiles['well'] + \
+            df_wells_tiles['tile'].astype(str)
+        include_wells_tiles = [''.join(map(str, well_tile))
+                               for well_tile in include]
+        wells, tiles = df_wells_tiles.query(
+            'well_tile==@include_wells_tiles')[['well', 'tile']].values.T
 
     else:
         wells, tiles = df_wells_tiles.query(include)[['well', 'tile']].values.T
@@ -1270,65 +1292,72 @@ def initialize_paramsearch(config):
     from snakemake.utils import Paramspace
     from itertools import product
     if config['MODE'] == 'paramsearch_segmentation':
-        if isinstance(config['THRESHOLD_DAPI'],list):
+        if isinstance(config['THRESHOLD_DAPI'], list):
             # user supplied values to test
             thresholds_dapi = config['THRESHOLD_DAPI']
         else:
             # default, 200 below and 200 above given `THRESHOLD_DAPI`
-            thresholds_dapi = np.arange(config['THRESHOLD_DAPI']-200,config['THRESHOLD_DAPI']+300,100,dtype=int)
+            thresholds_dapi = np.arange(
+                config['THRESHOLD_DAPI']-200, config['THRESHOLD_DAPI']+300, 100, dtype=int)
 
-        if isinstance(config['NUCLEUS_AREA'][0],list):
+        if isinstance(config['NUCLEUS_AREA'][0], list):
             # user supplied values to test
             nucleus_areas = config['NUCLEUS_AREA']
         else:
             # default, only test given `NUCLEUS_AREA` to keep grid search manageable
             nucleus_areas = [config['NUCLEUS_AREA']]
 
-        if isinstance(config['THRESHOLD_CELL'],list):
+        if isinstance(config['THRESHOLD_CELL'], list):
             # user supplied values to test
             thresholds_cell = config['THRESHOLD_CELL']
         else:
             # default, 200 below and 200 above given `THRESHOLD_CELL`
-            thresholds_cell = np.arange(config['THRESHOLD_CELL']-200,config['THRESHOLD_CELL']+300,100,dtype=int)
+            thresholds_cell = np.arange(
+                config['THRESHOLD_CELL']-200, config['THRESHOLD_CELL']+300, 100, dtype=int)
 
-        df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI':t_dapi,'NUCLEUS_AREA_MIN':n_area_min,'NUCLEUS_AREA_MAX':n_area_max}
-            for t_dapi,(n_area_min,n_area_max) in product(thresholds_dapi,nucleus_areas)
-            ])
+        df_nuclei_segmentation = pd.DataFrame([{'THRESHOLD_DAPI': t_dapi, 'NUCLEUS_AREA_MIN': n_area_min, 'NUCLEUS_AREA_MAX': n_area_max}
+                                               for t_dapi, (n_area_min, n_area_max) in product(thresholds_dapi, nucleus_areas)
+                                               ])
 
-        df_cell_segmentation = pd.DataFrame(thresholds_cell,columns=['THRESHOLD_CELL'])
+        df_cell_segmentation = pd.DataFrame(
+            thresholds_cell, columns=['THRESHOLD_CELL'])
 
         nuclei_segmentation_paramspace = Paramspace(df_nuclei_segmentation,
-            filename_params=['THRESHOLD_DAPI','NUCLEUS_AREA_MIN','NUCLEUS_AREA_MAX'])
+                                                    filename_params=['THRESHOLD_DAPI', 'NUCLEUS_AREA_MIN', 'NUCLEUS_AREA_MAX'])
 
         cell_segmentation_paramspace = Paramspace(df_cell_segmentation,
-            filename_params=['THRESHOLD_CELL'])
+                                                  filename_params=['THRESHOLD_CELL'])
 
         config['REQUESTED_FILES'] = []
         config['REQUESTED_TAGS'] = [f'segmentation_summary.{nuclei_segmentation_instance}.'
-                f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif'
-                for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
+                                    f'{"_".join(cell_segmentation_paramspace.instance_patterns)}.tif'
+                                    for nuclei_segmentation_instance in nuclei_segmentation_paramspace.instance_patterns]
         config['TEMP_TAGS'] = [f'nuclei.{nuclei_segmentation_paramspace.wildcard_pattern}.tif',
-            f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
-            ]
+                               f'cells.{nuclei_segmentation_paramspace.wildcard_pattern}.{cell_segmentation_paramspace.wildcard_pattern}.tif'
+                               ]
 
         return config, nuclei_segmentation_paramspace, cell_segmentation_paramspace
 
     elif config['MODE'] == 'paramsearch_read-calling':
-        if isinstance(config['THRESHOLD_READS'],list):
+        if isinstance(config['THRESHOLD_READS'], list):
             # user supplied values to test
             thresholds_reads = config['THRESHOLD_READS']
         else:
             # default, min=10 max=1000 with increments of 50
-            thresholds_reads = np.concatenate([np.array([10]),np.arange(50,1050,50,dtype=int)])
+            thresholds_reads = np.concatenate(
+                [np.array([10]), np.arange(50, 1050, 50, dtype=int)])
 
-        df_read_thresholds = pd.DataFrame(thresholds_reads,columns=['THRESHOLD_READS'])
+        df_read_thresholds = pd.DataFrame(
+            thresholds_reads, columns=['THRESHOLD_READS'])
 
-        read_calling_paramspace = Paramspace(df_read_thresholds,filename_params=['THRESHOLD_READS'])
+        read_calling_paramspace = Paramspace(
+            df_read_thresholds, filename_params=['THRESHOLD_READS'])
 
-        config['REQUESTED_FILES'] = ['paramsearch_read-calling.summary.csv','paramsearch_read-calling.summary.pdf']
+        config['REQUESTED_FILES'] = [
+            'paramsearch_read-calling.summary.csv', 'paramsearch_read-calling.summary.pdf']
         config['REQUESTED_TAGS'] = []
         config['TEMP_TAGS'] = [f'bases.{read_calling_paramspace.wildcard_pattern}.csv',
-            f'reads.{read_calling_paramspace.wildcard_pattern}.csv'
-            ]
+                               f'reads.{read_calling_paramspace.wildcard_pattern}.csv'
+                               ]
 
         return config, read_calling_paramspace
