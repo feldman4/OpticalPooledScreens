@@ -59,17 +59,15 @@ class Snake():
             Threshold for removing extreme values from SBS channels when using method='SBS_mean'. Channels are normalized
             to the 70th percentile, and normalized values greater than `cutoff` are replaced by `cutoff`.
 
-        align_channels : slice object or None, default slice(1,None)
-            If not None, aligns channels (defined by the passed slice object) to each other within each cycle. If
-            None, does not align channels within cycles. Useful in particular for cases where images for all stage
-            positions are acquired for one SBS channel at a time, i.e., acquisition order of channels(positions).
+        align_channels : slice object, list of indices, or None, default slice(1,None)
+            Defines channels to align to each other within cycles, and channels to use for across-cycle alignment when 
+            `method`=='SBS_mean'. If None and `method`=='DAPI', does not align channels within cycles. Else, None raises 
+            an error. Aligning within cycles is particularly useful for cases where images for all stage positions are 
+            acquired for one SBS channel at a time, i.e., acquisition order of channels(positions).
 
         keep_trailing : boolean, default True
             If True, keeps only the minimum number of trailing channels across cycles. E.g., if one cycle contains 6 channels,
             but all others have 5, only uses trailing 5 channels for alignment.
-
-        n : int, default 1
-            The first SBS channel in `data`.
 
         Returns
         -------
@@ -100,8 +98,11 @@ class Snake():
             aligned = Align.align_between_cycles(aligned, channel_index=0, 
                                 window=window, upsample_factor=upsample_factor)
         elif method == 'SBS_mean':
+            if align_channels is None:
+                raise ValueError('`align_channels` must be a slice object or list of indices '
+                    'when `method`=="SBS_mean", not None.')
             # calculate cycle offsets using the average of SBS channels
-            target = Align.apply_window(aligned[:, n:], window=window).max(axis=1)
+            target = Align.apply_window(aligned[:, align_channels], window=window).max(axis=1)
             normed = Align.normalize_by_percentile(target)
             normed[normed > cutoff] = cutoff
             offsets = Align.calculate_offsets(normed, upsample_factor=upsample_factor)
