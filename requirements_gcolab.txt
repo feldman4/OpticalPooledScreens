@@ -1,5 +1,5 @@
 decorator==4.4.2
-joblib==0.15.1
+joblib==1.2.0
 matplotlib
 natsort==7.0.1
 networkx==2.4
