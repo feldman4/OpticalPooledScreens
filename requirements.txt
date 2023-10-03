@@ -7,7 +7,7 @@ networkx==2.4
 notebook
 numpy==1.18.1
 pandas==1.0.3
-Pillow==7.1.2
+Pillow==10.0.1
 python-Levenshtein==0.12.2
 PyYaml==5.4
 scikit-image==0.18.1
