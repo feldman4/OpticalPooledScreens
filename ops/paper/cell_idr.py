@@ -36,7 +36,7 @@ def format_ascp_command(ascp, pairlist, local='.'):
 
 def get_cell_idr(directory, experiment='C', well='all', tile='all', ascp=ascp_guess):
     """Download data from Cell IDR."""
-    os.makedirs(directory,exist_ok=True)
+    os.makedirs(f'{directory}/experiment{experiment}', exist_ok=True)
 
     if not shutil.which(ascp):
         ascp = shutil.which('ascp')
